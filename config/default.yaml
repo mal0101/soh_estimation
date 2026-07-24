@@ -1,0 +1,154 @@
+project:
+  name: soh_estimation
+  description: "ML/DL benchmark study for State of Health estimation of lithium-ion EV batteries"
+  author: "Malak M."
+  license: MIT
+
+data:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  features_dir: data/features
+  nasa_pcoe:
+    cells: [B0005, B0006, B0007, B0018]
+    format: mat
+  calce:
+    cells: [CS2_33, CS2_34, CS2_35, CS2_36]
+    format: csv
+
+preprocessing:
+  savgol:
+    window_length: 51
+    polynomial_order: 3
+  resampling:
+    n_points: 1000
+  soh:
+    q_initial_cycles: [3, 10]
+    eol_threshold: 0.80
+    soh_cap: 1.0
+  cycle_segmentation:
+    min_discharge_fraction: 0.90
+    current_sign_convention: "positive=charge"
+
+features:
+  ica:
+    min_peak_prominence: 0.01
+    compute_secondary_peak: true
+  internal_resistance:
+    use_eis_if_available: true
+  feature_selection:
+    correlation_threshold: 0.95
+    top_k_features: 20
+  scaling:
+    method: standard  # StandardScaler
+
+models:
+  sequence_window: 20
+  naive_baseline: true
+
+  classical:
+    rf:
+      n_trials: 100
+      param_space:
+        n_estimators: [100, 500]
+        max_depth: [10, 40, null]
+        min_samples_leaf: [1, 10]
+        max_features: ["sqrt", "log2", 0.5]
+    svr:
+      n_trials: 50
+      kernel: rbf
+      param_space:
+        C: [0.01, 1000, log]
+        epsilon: [0.001, 0.1]
+        gamma: ["scale", "auto", 1e-4, 1.0]
+    gpr:
+      max_train_samples: 5000
+      kernel: "matern_1_5"
+      n_restarts_optimizer: 5
+
+  dl:
+    batch_size: 64
+    max_epochs: 150
+    max_epochs_cpu: 50
+    learning_rate: 0.001
+    patience_early_stopping: 10
+    patience_lr_reduce: 5
+    lr_reduce_factor: 0.5
+    n_seeds: 5
+    optimizer: adam
+    loss: mse
+
+    lstm:
+      n_trials: 30
+      default:
+        lstm_1_units: 64
+        lstm_2_units: 32
+        dense_units: 16
+        dropout: 0.2
+      param_space:
+        lstm_1_units: [32, 64, 128]
+        lstm_2_units: [16, 32, 64]
+        dropout: [0.1, 0.4]
+        learning_rate: [1e-4, 1e-2, log]
+
+    cnn:
+      n_trials: 30
+      default:
+        filters: [32, 64, 128]
+        kernel_size: 3
+        dense_units: 64
+        dropout: 0.2
+      param_space:
+        filters_1: [16, 32, 64]
+        filters_2: [32, 64, 128]
+        filters_3: [64, 128, 256]
+        kernel_size: [3, 5, 7]
+        dropout: [0.1, 0.4]
+        learning_rate: [1e-4, 1e-2, log]
+
+    transformer:
+      n_trials: 30
+      default:
+        d_model: 64
+        n_heads: 4
+        n_encoder_blocks: 2
+        ffn_dim: 128
+        dropout: 0.2
+      param_space:
+        d_model: [32, 64]
+        n_heads: [2, 4]
+        n_encoder_blocks: [1, 2, 3]
+        dropout: [0.1, 0.3]
+        learning_rate: [1e-4, 1e-2, log]
+
+evaluation:
+  metrics:
+    - rmse
+    - mae
+    - maxae
+    - r2
+  error_analysis_phases:
+    early: {min_soh: 0.90, max_soh: 1.0}
+    mid: {min_soh: 0.80, max_soh: 0.90}
+    end: {min_soh: 0.0, max_soh: 0.80}
+  robustness:
+    noise_levels: [0.005, 0.01, 0.02]
+    missing_cycle_fractions: [0.1, 0.2, 0.3]
+  deployability:
+    n_inference_repeats: 1000
+    target_rmse: 0.02
+    target_maxae: 0.05
+    target_inference_ms: 200
+    bms_flash_min_kb: 256
+    bms_flash_max_mb: 4
+
+tracking:
+  experiment_name: soh_benchmark
+  tracking_uri: mlruns
+  log_models: true
+  log_figures: true
+
+seeding:
+  global_seed: 42
+  numpy_seed: 42
+  torch_seed: 42
+  python_seed: 42

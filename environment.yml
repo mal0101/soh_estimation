@@ -1,0 +1,20 @@
+name: soh
+channels:
+  - defaults
+  - https://repo.anaconda.com/pkgs/main
+  - https://repo.anaconda.com/pkgs/r
+dependencies:
+  - python=3.11
+  - h5py=3.10
+  - matplotlib=3.8
+  - numpy=1.24
+  - pandas=2.1
+  - scipy=1.11
+  - seaborn=0.13
+  - optuna=3.5
+  - pyyaml
+  - scikit-learn=1.4
+  - shap=0.44
+  - pytorch
+  - torchvision
+prefix: /opt/anaconda3/envs/soh
