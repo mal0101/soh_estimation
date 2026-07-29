@@ -178,3 +178,10 @@ experiments/fold_indices.json
 
 # Large generated figures (regenerate from notebooks)
 experiments/figures/
+
+# MLflow database
+mlflow.db
+
+# Experiment results
+experiments/*.yaml
+experiments/results/

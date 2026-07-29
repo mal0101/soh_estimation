@@ -20,7 +20,10 @@ def init_tracking(tracking_uri: str = "mlruns", experiment_name: str = "soh_benc
         tracking_uri: Path to the MLflow backend store.
         experiment_name: Name of the experiment to log runs under.
     """
-    mlflow.set_tracking_uri(Path(tracking_uri).resolve().as_uri())
+    if tracking_uri.startswith("sqlite"):
+        mlflow.set_tracking_uri(tracking_uri)
+    else:
+        mlflow.set_tracking_uri(Path(tracking_uri).resolve().as_uri())
     mlflow.set_experiment(experiment_name)
     logger.info("MLflow tracking initialized: uri=%s, experiment=%s", tracking_uri, experiment_name)
 
@@ -93,7 +96,7 @@ def log_figures(figures: dict[str, Any], artifact_dir: str = "figures") -> None:
     """
     import tempfile
 
-    for name, fig in figures.items():
+    for _name, fig in figures.items():
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
             fig.savefig(tmp.name, dpi=150, bbox_inches="tight")
             log_artifact(tmp.name, artifact_dir=artifact_dir)

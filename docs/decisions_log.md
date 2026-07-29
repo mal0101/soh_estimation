@@ -46,6 +46,7 @@ Records all architectural and design decisions made during the project, with rat
 - Local tracking keeps data on-machine; no external dependencies.
 - MLflow model registry is sufficient for our model versioning needs.
 - Works offline; important for a internship laptop that may not always have internet.
+**Migration:** Migrated from file store to SQLite backend (`sqlite:///mlflow.db`) on 2025-07-27 after MLflow 3.14 dropped file store support.
 **Alternatives rejected:**
 - W&B: Requires account, internet for syncing, free tier has run limits.
 - TensorBoard: Less suited for sklearn models; primarily a DL tool.
@@ -63,6 +64,7 @@ Records all architectural and design decisions made during the project, with rat
 - YAML is human-readable and easy to edit.
 - Config class enables `cfg.models.dl.learning_rate` style access.
 - Supports CLI overrides via `--config` flag.
+**Tuning:** DL models adjusted for feasibility: n_seeds 5→3, n_trials 30→10, max_epochs 150→80. SVR gamma bounds changed from `1e-4` string to `0.0001` float.
 **Alternatives rejected:**
 - argparse only: Becomes unwieldy with 50+ parameters.
 - Hydra/OmegaConf: Overkill for this project's complexity level.
@@ -121,20 +123,17 @@ Records all architectural and design decisions made during the project, with rat
 
 ---
 
-## D-008: 5 Random Seeds for DL Models
+## D-008: 3 Random Seeds for DL Models
 
-**Date:** 2025-07-23
+**Date:** 2025-07-27
 **Status:** Accepted
 **Context:** DL training is stochastic; must report mean ± std.
-**Decision:** Train each DL model configuration 5 times with different seeds.
+**Decision:** Train each DL model configuration 3 times with different seeds (reduced from initial plan of 5).
 **Rationale:**
 - DL training has high variance due to random initialization and data shuffling.
-- 5 seeds is the minimum for meaningful statistics.
+- 3 seeds is the minimum for meaningful statistics while keeping training feasible.
+- Combined with reduced Optuna trials (10 per model) and max_epochs (80), keeps total training time manageable.
 - A model achieving 1% RMSE once but averaging 2.5% is not competitive.
-- Matches standard practice in ML papers.
 **Alternatives rejected:**
-- 3 seeds: Too few for reliable statistics.
-- 10 seeds: Computationally expensive; diminishing returns.
-
----
-
+- 5 seeds: Computationally expensive with small dataset; 3 provides sufficient variance estimates.
+- 1 seed: Insufficient for reporting statistics.

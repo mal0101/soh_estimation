@@ -6,44 +6,46 @@ Describes every column in the feature matrix and intermediate data products.
 
 | Column | Type | Description |
 |---|---|---|
-| cell_id | str | Unique cell identifier (e.g., B0005, CS2_33) |
-| dataset | str | Dataset name: 'nasa_pcoe' or 'calce' |
-| cycle_number | int | 1-indexed cycle number |
+| cell_id | str | Unique cell identifier (e.g., B0005) |
+| dataset | str | Dataset name: 'nasa_pcoe' |
+| cycle_number | int | Cycle number (not 1-indexed; matches raw data numbering) |
 | soh | float | State of Health: Q_discharge(n) / Q_initial, capped at 1.0 |
 | q_discharge | float | Measured discharge capacity for this cycle (Ah) |
 | q_initial | float | Reference capacity: mean of cycles 3-10 for this cell (Ah) |
 
+**Shape:** 636 rows (4 cells: B0005, B0006, B0007, B0018)
+
 ## Feature Matrix (`data/features/feature_matrix.parquet`)
 
-Inherits all columns from SOH Labels plus:
+Inherits all columns from SOH Labels plus 12 selected features. **Shape:** 636 × 16.
 
-### ICA Features (from `src/features/ica.py`)
+### Selected Features (12)
+
+#### Energy Features (from `src/features/energy.py`)
 
 | Column | Type | Description |
 |---|---|---|
-| ica_primary_peak_height | float | Height of tallest peak in dQ/dV curve |
-| ica_primary_peak_voltage | float | Voltage position of primary peak (V) |
-| ica_primary_peak_fwhm | float | Full width at half maximum of primary peak (V) |
-| ica_primary_peak_area | float | Area under primary peak (Ah/V) |
-| ica_secondary_peak_ratio | float | Ratio of secondary to primary peak height (if present) |
+| mean_discharge_voltage | float | Average voltage during discharge (V) |
+| discharge_energy | float | Integral of V*I*dt over discharge cycle (Wh) |
 
-### Internal Resistance (from `src/features/internal_resistance.py`)
+#### Internal Resistance (from `src/features/internal_resistance.py`)
 
 | Column | Type | Description |
 |---|---|---|
 | internal_resistance | float | Estimated from discharge pulse onset: delta_V / delta_I (Ohm) |
-| eis_resistance_1khz | float | Real impedance at 1 kHz from EIS data (Ohm, NASA only) |
+| eis_re | float | Real impedance at 1 kHz from EIS data (Ohm, NaN if unavailable) |
 
-### Energy Features (from `src/features/energy.py`)
+#### ICA Features (from `src/features/ica.py`)
 
 | Column | Type | Description |
 |---|---|---|
-| discharge_energy | float | Integral of V*I*dt over discharge cycle (Wh) |
-| mean_discharge_voltage | float | Average voltage during discharge (V) |
-| discharge_duration | float | Time from discharge start to end (s) |
-| coulombic_efficiency | float | Q_discharge / Q_charge ratio (dimensionless) |
+| ica_peak_voltage | float | Voltage position of primary peak in dQ/dV curve (V) |
+| ica_peak_height | float | Height of tallest peak in dQ/dV curve |
+| ica_peak_area | float | Area under primary peak (Ah/V) |
 
-### Temperature Features (from `src/features/temperature.py`)
+Note: `ica_peak_fwhm` and `ica_secondary_ratio` were always NaN (dQ/dV peaks are narrow single-point spikes on the resampled grid) and were dropped from the final feature set.
+
+#### Temperature Features (from `src/features/temperature.py`)
 
 | Column | Type | Description |
 |---|---|---|
@@ -52,11 +54,11 @@ Inherits all columns from SOH Labels plus:
 | temp_min | float | Minimum temperature during discharge cycle (deg C) |
 | temp_range | float | Temperature range: max - min (deg C) |
 
-### Trend Features (from `src/features/trend.py`)
+#### Trend Features (from `src/features/trend.py`)
 
 | Column | Type | Description |
 |---|---|---|
-| soh_slope | float | Local slope of SOH over last 10 cycles: (SOH(n) - SOH(n-10)) / 10 |
+| capacity_fade_rate | float | Local slope of SOH over last 10 cycles: (SOH(n) - SOH(n-10)) / 10 |
 
 ### Metadata
 
@@ -66,16 +68,34 @@ Inherits all columns from SOH Labels plus:
 | dataset | str | Dataset source (inherited) |
 | cell_id | str | Cell identifier (inherited) |
 
-## Preprocessed Data (`data/processed/{dataset}_{cell}_preprocessed.parquet`)
+## Dropped Features
 
-| Column | Type | Description |
+| Feature | Reason for Dropping |
+|---|---|
+| ica_peak_fwhm | Always NaN; dQ/dV peaks are too narrow on resampled grid |
+| ica_secondary_ratio | Always NaN; no secondary peaks detected |
+| coulombic_efficiency | Low variance across cycles; not discriminative |
+| discharge_duration | Low discriminative power |
+| secondary_ratio | Always NaN |
+
+## Preprocessed Data (`data/processed/processed_cells.pkl`)
+
+Pickle file containing a dict keyed by cell_id. Each entry is a dict with:
+
+| Key | Type | Description |
 |---|---|---|
 | cell_id | str | Cell identifier |
 | dataset | str | Dataset source |
+| cycles | list[dict] | List of preprocessed cycle dicts |
+
+Each cycle dict contains:
+
+| Key | Type | Description |
+|---|---|---|
 | cycle_number | int | Cycle number |
-| cycle_type | str | 'charge', 'discharge', or 'rest' |
-| soh | float | SOH label (discharge cycles only) |
-| voltage_filtered | array[float] | Savitzky-Golay filtered voltage (resampled) |
+| cycle_type | str | 'charge', 'discharge', or 'impedance' |
+| voltage_filtered | array[float] | Savitzky-Golay filtered voltage (resampled to 1000 points) |
 | current_filtered | array[float] | Filtered current (resampled) |
 | temperature_filtered | array[float] | Filtered temperature (resampled) |
 | capacity_grid | array[float] | Uniform capacity axis (1000 points) |
+| soh | float | SOH label (discharge cycles only) |

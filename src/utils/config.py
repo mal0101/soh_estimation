@@ -37,7 +37,7 @@ class Config:
         path = Path(path)
         if not path.exists():
             raise FileNotFoundError(f"Config file not found: {path}")
-        with open(path, "r") as f:
+        with open(path) as f:
             data = yaml.safe_load(f)
         return cls(data)
 
@@ -46,8 +46,8 @@ class Config:
             return super().__getattribute__(key)
         try:
             value = self._data[key]
-        except KeyError:
-            raise AttributeError(f"Config has no attribute '{key}'")
+        except KeyError as err:
+            raise AttributeError(f"Config has no attribute '{key}'") from err
         if isinstance(value, dict):
             return Config(value)
         return value
