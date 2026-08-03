@@ -11,6 +11,8 @@ from typing import Any
 import numpy as np
 from scipy.signal import find_peaks
 
+_trapz = getattr(np, "trapezoid", getattr(np, "trapz", None))
+
 logger = logging.getLogger(__name__)
 
 
@@ -122,7 +124,7 @@ def extract_ica_features(
     if len(peak_voltages) > 1:
         positive_mask = peak_dqdV > 0
         if np.any(positive_mask):
-            features["ica_peak_area"] = float(abs(np.trapz(
+            features["ica_peak_area"] = float(abs(_trapz(
                 peak_dqdV[positive_mask], peak_voltages[positive_mask]
             )))
 

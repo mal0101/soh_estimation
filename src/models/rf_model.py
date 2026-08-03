@@ -4,6 +4,7 @@ Wraps sklearn RandomForestRegressor with Optuna search and MLflow logging.
 """
 
 import logging
+from collections.abc import Callable
 
 import numpy as np
 import optuna
@@ -18,7 +19,7 @@ def create_objective(
     X_val: np.ndarray,
     y_val: np.ndarray,
     param_space: dict,
-):
+) -> Callable[[optuna.Trial], float]:
     """Create an Optuna objective function for Random Forest.
 
     Args:

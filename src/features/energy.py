@@ -2,6 +2,8 @@
 
 import numpy as np
 
+_trapz = getattr(np, "trapezoid", getattr(np, "trapz", None))
+
 
 def compute_discharge_energy(
     voltage: np.ndarray,
@@ -24,7 +26,7 @@ def compute_discharge_energy(
         return np.nan
 
     power = voltage * np.abs(current)
-    energy_joules = np.trapz(power, time)
+    energy_joules = _trapz(power, time)
     return energy_joules / 3600.0
 
 
@@ -49,7 +51,7 @@ def compute_mean_discharge_voltage(
     if np.isnan(energy) or energy <= 0:
         return np.nan
 
-    capacity_ah = np.trapz(np.abs(current), time) / 3600.0
+    capacity_ah = _trapz(np.abs(current), time) / 3600.0
     if capacity_ah <= 0:
         return np.nan
 

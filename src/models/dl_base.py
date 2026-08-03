@@ -5,7 +5,6 @@ management, and seeding needed by all DL models (LSTM, CNN, Transformer).
 """
 
 import logging
-import random
 from typing import Any
 
 import numpy as np
@@ -16,36 +15,9 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader, Dataset
 
+from src.utils.seeding import set_seed
+
 logger = logging.getLogger(__name__)
-
-
-def set_seed(seed: int) -> None:
-    """Set all random seeds for reproducibility.
-
-    Args:
-        seed: Integer seed value.
-    """
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-
-
-def device_manager() -> torch.device:
-    """Detect and return the best available compute device.
-
-    Returns:
-        torch.device: MPS if available, then CUDA, else CPU.
-    """
-    if torch.backends.mps.is_available():
-        device = torch.device("mps")
-    elif torch.cuda.is_available():
-        device = torch.device("cuda")
-    else:
-        device = torch.device("cpu")
-    logger.info("Using device: %s", device)
-    return device
 
 
 class SOHDataset(Dataset):

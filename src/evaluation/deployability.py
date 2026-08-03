@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 
 import numpy as np
+import torch
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ def benchmark_inference_time(
     X: np.ndarray,
     n_repeats: int = 1000,
     is_torch: bool = False,
-    device: object = None,
+    device: torch.device | None = None,
 ) -> dict[str, float]:
     """Benchmark sequential CPU inference time.
 

@@ -17,4 +17,3 @@ dependencies:
   - shap=0.44
   - pytorch
   - torchvision
-prefix: /opt/anaconda3/envs/soh

@@ -15,10 +15,12 @@ import yaml
 
 from src.evaluation.validation import cell_based_loocv
 from src.models.cnn import train_cnn
-from src.models.dl_base import create_sequences, device_manager, set_seed
+from src.models.dl_base import create_sequences
 from src.models.lstm import train_lstm
 from src.models.transformer import train_transformer
 from src.utils.config import Config
+from src.utils.seeding import get_device as device_manager
+from src.utils.seeding import set_seed
 from src.utils.tracking import init_tracking, log_metrics, log_params, start_run
 
 logger = logging.getLogger(__name__)

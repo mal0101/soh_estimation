@@ -185,3 +185,6 @@ mlflow.db
 # Experiment results
 experiments/*.yaml
 experiments/results/
+
+# Inspection guide (not tracked)
+GUIDE.md

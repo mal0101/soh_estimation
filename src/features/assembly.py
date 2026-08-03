@@ -71,8 +71,6 @@ def build_feature_matrix(
         for cc in charge_cycles:
             charge_caps[cc["cycle_number"]] = _compute_charge_capacity(cc)
 
-        sorted(charge_caps.keys())
-
         soh_cell = soh_df[soh_df["cell_id"] == cell_id].set_index("cycle_number")
 
         soh_values = []

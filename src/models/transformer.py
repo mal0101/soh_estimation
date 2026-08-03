@@ -15,7 +15,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from src.evaluation.metrics import compute_all_metrics
-from src.models.dl_base import SOHDataset, evaluate, set_seed, train_loop
+from src.models.dl_base import SOHDataset, evaluate, train_loop
+from src.utils.seeding import set_seed
 
 logger = logging.getLogger(__name__)
 

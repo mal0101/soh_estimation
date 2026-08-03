@@ -162,7 +162,7 @@ def run_pipeline(config_path: str = "config/default.yaml") -> None:
         pickle.dump(processed_cells, f)
     logger.info("Saved processed cells to %s", pkl_path)
 
-    soh_df = compute_soh_for_all_cells(all_cells, q_initial_cycles)
+    soh_df = compute_soh_for_all_cells(processed_cells, q_initial_cycles)
     soh_path = processed_dir / "soh_labels.parquet"
     soh_df.to_parquet(soh_path, index=False)
     logger.info("Saved SOH labels to %s (%d rows)", soh_path, len(soh_df))
