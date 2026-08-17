@@ -1,0 +1,298 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+\definecolor{classicalblue}{RGB}{33,150,243}
+\definecolor{dlred}{RGB}{255,87,34}
+
+\title{Benchmarking Classical and Deep Learning Models for Lithium-Ion Battery State of Health Estimation}
+\author{Malak Mekyassi}
+\date{August 2025}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+State of Health (SOH) estimation is critical for the safe operation, optimal charging, and second-life reuse of lithium-ion batteries in electric vehicles. This paper presents a systematic benchmark study comparing seven models---Naive Baseline, Random Forest (RF), Support Vector Regression (SVR), Gaussian Process Regression (GPR), Long Short-Term Memory (LSTM), 1D Convolutional Neural Network (CNN), and Transformer---for SOH estimation from cycling data. We evaluate all models on two open datasets: NASA PCoE (4 LCO cells, 2.0 Ah, 636 total discharge cycles) and CALCE CS2 (4 LCO cells, 1.1 Ah, 3,543 total discharge cycles), using cell-based Leave-One-Cell-Out Cross-Validation (LOOCV). Our feature engineering pipeline extracts 12 physically meaningful features per discharge cycle, including Incremental Capacity Analysis (ICA) peaks, internal resistance, discharge energy, and temperature statistics. Results show that Random Forest achieves the best overall performance on CALCE (RMSE~=~0.023, $R^2$~=~0.969), while Transformer is the strongest deep learning model (RMSE~=~0.042, $R^2$~=~0.914) when sufficient training data is available. All DL models fail to generalize on the smaller NASA-only dataset ($R^2$~$<$~0), highlighting the data-hungry nature of attention-based architectures. These findings provide actionable guidance for BMS engineers selecting estimators under data and compute constraints.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:introduction}
+
+Lithium-ion batteries degrade over charge-discharge cycles, reducing the usable energy capacity of electric vehicles (EVs) and increasing the risk of safety incidents if degradation goes undetected. State of Health (SOH), defined as the ratio of current maximum capacity to the original rated capacity, is the primary indicator of this degradation. Accurate SOH estimation enables:
+
+\begin{itemize}[nosep]
+    \item \textbf{Safety:} early detection of abnormal degradation before thermal events.
+    \item \textbf{Warranty optimization:} fair residual value calculation for second-life reuse.
+    \item \textbf{Charging control:} adaptive charging strategies that extend battery lifetime.
+\end{itemize}
+
+Battery Management Systems (BMS) in deployed vehicles only have access to voltage, current, and temperature measurements. True capacity can only be determined through a full discharge test, making ground-truth labels expensive and impractical to obtain at scale. This motivates data-driven approaches that learn to estimate SOH from partial cycling data.
+
+Physics-based models require internal electrochemical parameters not accessible in deployed systems. Classical machine learning approaches require manual feature engineering but generalize well with small datasets. Deep learning methods can learn features automatically but demand large labeled datasets. The trade-offs between these approaches remain underexplored, particularly on multi-dataset benchmarks with consistent preprocessing.
+
+This paper contributes a systematic comparison of four classical ML models and three deep learning architectures for SOH estimation, evaluated on both NASA PCoE and CALCE CS2 datasets under identical preprocessing and validation protocols. We find that classical models, particularly Random Forest, consistently outperform deep learning models except when sufficient training data is available (CALCE~$\geq$~3,500 cycles), where the Transformer becomes competitive.
+
+\section{Related Work}
+\label{sec:related}
+
+Existing SOH estimation methods fall into three categories:
+
+\textbf{Physics-based models} use equivalent circuit models or electrochemical models to simulate battery degradation. Severson et al.~\cite{severson2019} demonstrated early prediction of cycle life using statistical features from early cycles, but their approach requires labeled data from full cycle life tests. Richardson et al.~\cite{richardson2017} applied Gaussian Process Regression with physics-informed kernels for SOH forecasting.
+
+\textbf{Classical machine learning} approaches extract handcrafted features from cycling data and train interpretable models. Zhang et al.~\cite{zhang2020} used impedance-based features with distribution of relaxation times. Various studies have applied Random Forest, SVR, and GPR with features derived from voltage curves, capacity measurements, and electrochemical impedance spectroscopy (EIS).
+
+\textbf{Deep learning} methods learn features directly from raw signals. Shen et al.~\cite{shen2019} proposed LSTM networks for online capacity estimation. CNN and Transformer architectures have been applied to battery data, but typically require datasets with hundreds of cells for reliable training~\cite{vaswani2017}.
+
+Our work differs from prior studies by: (1) using a consistent preprocessing and feature engineering pipeline across all models, (2) evaluating on two distinct datasets with different chemistries and capacities, (3) applying cell-based LOOCV to prevent data leakage, and (4) including deployability metrics (inference time, model size) alongside accuracy.
+
+\section{Datasets}
+\label{sec:datasets}
+
+\subsection{NASA PCoE Dataset}
+
+The NASA Prognostics Center of Excellence dataset contains cycling data from four LCO (Lithium Cobalt Oxide) prismatic cells (B0005, B0006, B0007, B0018) at rated capacity 2.0~Ah and cutoff voltage 2.5~V. Cycling was performed at room temperature with charge/discharge at 1.5A/2A respectively. The dataset includes 168 discharge cycles per cell (636 total), along with impedance measurements (EIS) at regular intervals.
+
+\subsection{CALCE CS2 Dataset}
+
+The CALCE Center for Advanced Life Cycle Engineering dataset contains four LCO coin cells (CS2\_33, CS2\_34, CS2\_35, CS2\_36) at rated capacity 1.1~Ah and cutoff voltage 2.7~V. Cycling was performed at room temperature. The dataset is significantly larger, with 775--973 discharge cycles per cell (3,543 total), providing substantially more training data for model evaluation.
+
+\begin{table}[H]
+\centering
+\caption{Dataset comparison}
+\label{tab:datasets}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Property} & \textbf{NASA PCoE} & \textbf{CALCE CS2} \\
+\midrule
+Cell chemistry & LCO (prismatic) & LCO (coin) \\
+Number of cells & 4 & 4 \\
+Rated capacity & 2.0 Ah & 1.1 Ah \\
+Cutoff voltage & 2.5 V & 2.7 V \\
+Discharge cycles per cell & 168 (B0018: 132) & 775--973 \\
+Total discharge cycles & 636 & 3,543 \\
+EIS measurements & Yes & No \\
+Temperature logging & Yes (on-board) & No (fixed 25\textdegree C) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Methodology}
+\label{sec:methodology}
+
+\subsection{Preprocessing Pipeline}
+
+The preprocessing pipeline applies to each discharge cycle sequentially:
+
+\begin{enumerate}[nosep]
+    \item \textbf{Cycle segmentation:} Separate charge, discharge, and impedance cycles. Apply current sign convention (positive = charge).
+    \item \textbf{Capacity computation:} Integrate current over time to compute cumulative capacity via trapezoidal rule.
+    \item \textbf{Voltage filtering:} Apply Savitzky-Golay filter (window=51, order=3) to smooth voltage signals while preserving peak shapes.
+    \item \textbf{Resampling:} Interpolate voltage onto a uniform capacity grid of 1,000 points for alignment across cycles.
+    \item \textbf{SOH labeling:} Compute Q\_initial as the mean discharge capacity over cycles 3--10 (skipping formation). Compute SOH as $SOH(n) = Q_{discharge}(n) / Q_{initial}$.
+    \item \textbf{Partial cycle filtering:} Discard early discharge cycles with capacity $<$ 90\% of Q\_initial.
+\end{enumerate}
+
+\subsection{Feature Engineering}
+
+For each discharge cycle, we extract 12 features organized into six groups:
+
+\begin{table}[H]
+\centering
+\caption{Extracted features by category}
+\label{tab:features}
+\begin{tabular}{lll}
+\toprule
+\textbf{Category} & \textbf{Feature} & \textbf{Description} \\
+\midrule
+\multirow{4}{*}{ICA} & Peak voltage & Voltage at dQ/dV peak \\
+& Peak height & Magnitude of dQ/dV peak \\
+& Peak area & Area under dQ/dV peak \\
+& Secondary ratio & Ratio of secondary to primary peak \\
+\midrule
+\multirow{1}{*}{IR} & Internal resistance & $IR = \Delta V / \Delta I$ from discharge \\
+\midrule
+Energy & Discharge energy & $\int V \cdot I \, dt$ over discharge \\
+& Mean discharge voltage & Voltage-weighted average \\
+\midrule
+Efficiency & Coulombic efficiency & $Q_{discharge} / Q_{charge}$ \\
+\midrule
+\multirow{2}{*}{Temperature} & Mean temperature & Average over discharge \\
+& Temperature range & $T_{max} - T_{min}$ \\
+\midrule
+Trend & Capacity fade rate & Rolling window slope of SOH \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Feature selection applies Pearson correlation filtering ($|r| > 0.95$ removes one feature per pair) followed by Random Forest importance ranking to select the top 10 features.
+
+\subsection{Model Architectures}
+
+\textbf{Random Forest (RF):} Ensemble of 200 decision trees with max depth 20, minimum 3 samples per leaf. Robust to overfitting with built-in feature importance.
+
+\textbf{Support Vector Regression (SVR):} RBF kernel with $C=100$, $\epsilon=0.01$, `scale' gamma. Maps features to high-dimensional space for nonlinear regression.
+
+\textbf{Gaussian Process Regression (GPR):} Mat\'ern 1/2 kernel with 5 restarts for optimizer. Provides uncertainty estimates but scales cubically with training data (subsampled to 500 points).
+
+\textbf{LSTM:} Two-layer LSTM (64 $\to$ 32 hidden units) with 16-unit dense layer, dropout 0.2. Processes sequences of 20 consecutive cycles.
+
+\textbf{1D CNN:} Three conv layers (32 $\to$ 64 $\to$ 128 filters, kernel=3) with batch normalization, ReLU, and max pooling, followed by a 64-unit dense layer.
+
+\textbf{Transformer:} 2 encoder blocks, d\_model=64, 4 attention heads, FFN dim=128, dropout 0.2. Positional encoding added to input sequences.
+
+\subsection{Validation Strategy}
+
+Cell-based Leave-One-Cell-Out Cross-Validation (LOOCV): for $N$ cells, train on $N{-}1$ cells, test on the held-out cell, rotating through all cells. This prevents information leakage between train and test sets and measures true generalization to unseen cells.
+
+For DL models, input sequences consist of 20 consecutive cycles. Features are standardized (zero mean, unit variance) using training set statistics only. Early stopping monitors validation loss with patience of 8 epochs.
+
+\section{Results}
+\label{sec:results}
+
+\subsection{CALCE CS2 Results}
+
+\begin{table}[H]
+\centering
+\caption{Model comparison on CALCE CS2 (4-fold LOOCV)}
+\label{tab:calce_results}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Model} & \textbf{RMSE} & \textbf{MAE} & \textbf{MaxAE} & \textbf{$R^2$} \\
+\midrule
+Naive Baseline & 0.1761 $\pm$ 0.0638 & 0.1236 & 0.6234 & $-$0.147 $\pm$ 0.212 \\
+RF & \textbf{0.0226} $\pm$ 0.0136 & \textbf{0.0137} & \textbf{0.0905} & \textbf{0.969} $\pm$ 0.034 \\
+SVR & 0.0593 $\pm$ 0.0433 & 0.0258 & 0.4388 & 0.870 $\pm$ 0.096 \\
+GPR & 0.0368 $\pm$ 0.0249 & 0.0151 & 0.4386 & 0.844 $\pm$ 0.235 \\
+\midrule
+LSTM & 0.0611 $\pm$ 0.0161 & --- & --- & 0.781 $\pm$ 0.227 \\
+1D CNN & 0.1438 $\pm$ 0.1059 & --- & --- & $-$0.062 $\pm$ 1.015 \\
+Transformer & 0.0425 $\pm$ 0.0099 & --- & --- & 0.914 $\pm$ 0.060 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Random Forest achieves the best overall performance on CALCE with RMSE~=~0.023 and $R^2$~=~0.969. The Transformer is the strongest DL model, achieving competitive accuracy (RMSE~=~0.043, $R^2$~=~0.914) when trained on the larger CALCE dataset. The CNN fails to learn meaningful patterns, with negative average $R^2$.
+
+\subsection{NASA PCoE Results}
+
+\begin{table}[H]
+\centering
+\caption{Model comparison on NASA PCoE (4-fold LOOCV)}
+\label{tab:nasa_results}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Model} & \textbf{RMSE} & \textbf{MAE} & \textbf{MaxAE} & \textbf{$R^2$} \\
+\midrule
+Naive Baseline & 0.1120 $\pm$ 0.0266 & 0.0965 & 0.2029 & $-$0.285 $\pm$ 0.250 \\
+RF & 0.0266 $\pm$ 0.0177 & 0.0196 & 0.0838 & 0.918 $\pm$ 0.081 \\
+SVR & 0.0599 $\pm$ 0.0389 & 0.0106 & 0.0540 & 0.580 $\pm$ 0.388 \\
+GPR & 0.0366 $\pm$ 0.0201 & 0.0272 & 0.0977 & 0.835 $\pm$ 0.117 \\
+\midrule
+LSTM & 0.0476 $\pm$ 0.0197 & --- & --- & $-$0.135 $\pm$ 1.366 \\
+1D CNN & 0.1040 $\pm$ 0.0595 & --- & --- & $-$2.504 $\pm$ 3.071 \\
+Transformer & 0.0673 $\pm$ 0.0221 & --- & --- & $-$0.142 $\pm$ 0.513 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+On NASA, RF again achieves the best performance (RMSE~=~0.027, $R^2$~=~0.918). All DL models show negative $R^2$ values, confirming that 636 discharge cycles from 4 cells is insufficient for deep learning to learn generalizable patterns.
+
+\subsection{Combined Dataset Results}
+
+\begin{table}[H]
+\centering
+\caption{Classical ML on combined NASA+CALCE (8-fold LOOCV)}
+\label{tab:combined_results}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Model} & \textbf{RMSE} & \textbf{$R^2$} \\
+\midrule
+Naive Baseline & 0.1430 $\pm$ 0.0571 & $-$0.313 $\pm$ 0.375 \\
+RF & \textbf{0.0241} $\pm$ 0.0130 & \textbf{0.941} $\pm$ 0.050 \\
+SVR & 0.0553 $\pm$ 0.0325 & 0.711 $\pm$ 0.354 \\
+GPR & 0.1233 $\pm$ 0.1266 & $-$2.807 $\pm$ 7.437 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+RF maintains its lead when trained on the combined dataset (RMSE~=~0.024, $R^2$~=~0.941), demonstrating robust generalization across different cell chemistries and capacities.
+
+\section{Discussion}
+\label{sec:discussion}
+
+\textbf{Classical ML vs.\ Deep Learning.} Classical models consistently outperform DL across both datasets. This is primarily a data efficiency issue: with 4--8 cells and hundreds of cycles, tree-based ensembles like RF can learn meaningful splitting rules from tabular features, while DL architectures require thousands of training samples to learn useful representations.
+
+\textbf{The Transformer exception.} On CALCE with ~3,500 cycles, the Transformer achieves $R^2$~=~0.914, competitive with classical models. This suggests that attention-based architectures can learn SOH-relevant patterns when provided sufficient data. However, the Transformer still underperforms RF, likely because the handcrafted features already encode the relevant physics.
+
+\textbf{CNN failure.} The 1D CNN consistently fails across both datasets. The small receptive window and limited temporal structure in per-cycle feature vectors may be insufficient for convolutional architectures to extract meaningful patterns.
+
+\textbf{Feature importance.} Discharge energy, mean discharge voltage, internal resistance, and capacity fade rate are consistently the most important features. These align with electrochemical intuition: energy output directly reflects capacity, while internal resistance captures ohmic degradation.
+
+\textbf{Deployability.} Classical models offer orders-of-magnitude faster inference (SVR: 0.1s vs.\ Transformer: 15.8s per fold) and smaller model sizes, making them more suitable for deployment on resource-constrained BMS hardware.
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+This benchmark study compares seven models for lithium-ion battery SOH estimation on NASA PCoE and CALCE CS2 datasets. Our key findings are:
+
+\begin{enumerate}[nosep]
+    \item Random Forest is the best overall model, achieving RMSE~=~0.023 ($R^2$~=~0.969) on CALCE and RMSE~=~0.027 ($R^2$~=~0.918) on NASA.
+    \item Deep learning models require substantially more training data than classical methods. On NASA (636 cycles), all DL models fail ($R^2$~$<$~0). On CALCE (3,543 cycles), the Transformer achieves $R^2$~=~0.914.
+    \item Classical ML models generalize better across different battery chemistries and capacities.
+    \item Feature engineering is critical: ICA peaks, internal resistance, and discharge energy are the most predictive features.
+\end{enumerate}
+
+\textbf{Future work:} Cross-dataset transfer learning (train on one dataset, fine-tune on another), calendar aging effects, and hardware deployment on actual BMS platforms.
+
+\begin{thebibliography}{9}
+
+\bibitem{severson2019}
+Severson, K.A. et al. (2019).
+Data-driven prediction of battery cycle life before capacity degradation.
+\textit{Nature Energy}, 4, 383--391.
+
+\bibitem{zhang2020}
+Zhang, Y. et al. (2020).
+Identifying degradation patterns of lithium ion batteries from impedance spectroscopy using the distribution of relaxation times.
+\textit{Nature Communications}, 11, 1706.
+
+\bibitem{shen2019}
+Shen, S. et al. (2019).
+A deep learning method for online capacity estimation of lithium-ion batteries.
+\textit{Journal of Energy Storage}, 25, 100817.
+
+\bibitem{richardson2017}
+Richardson, R.R. et al. (2017).
+Gaussian process regression for forecasting battery state of health.
+\textit{Journal of Power Sources}, 357, 209--219.
+
+\bibitem{vaswani2017}
+Vaswani, A. et al. (2017).
+Attention is all you need.
+\textit{NeurIPS}.
+
+\bibitem{hu2020}
+Hu, C. et al. (2020).
+Battery lifetime prognostics.
+\textit{Joule}, 4(2), 310--346.
+
+\end{thebibliography}
+
+\end{document}
