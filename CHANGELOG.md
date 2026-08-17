@@ -7,8 +7,24 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
-- LaTeX report writing (`report/main.tex`, `report/references.bib`)
-- Presentation slides (`report/presentation/`)
+- CALCE CS2 data loader (`load_calce_cell`, `load_all_calce_cells`) in `src/preprocessing/data_loader.py`
+- Extracted CALCE CS2 cells (CS2_33, CS2_34, CS2_35, CS2_36) to `data/raw/calce/`
+- `--dataset` CLI flag to preprocessing pipeline (`nasa`, `calce`, `all`)
+- `--dataset` CLI flag to classical ML and DL training scripts
+- CALCE preprocessing pipeline output (`data/processed/processed_cells_calce.pkl`, `soh_labels_calce.parquet`)
+- CALCE feature matrix (`data/features/feature_matrix_calce.parquet`) and combined matrix
+- Classical ML results on CALCE and combined datasets (`experiments/*_calce.yaml`, `*_all.yaml`)
+- DL results on CALCE (LSTM RMSE=0.061, CNN RMSE=0.144, Transformer RMSE=0.042)
+- CALCE EDA notebook (`notebooks/01_eda_calce.ipynb`)
+- Updated final comparison notebook with multi-dataset results
+- LaTeX technical report (`report/main.tex`) — 8-page benchmark study
+- Beamer presentation (`report/presentation.tex`) — 11 slides
+- Fixed savgol_filter_voltage edge case for short signal arrays
+
+### Changed
+- `assembly.py` uses `cell_data["dataset"]` instead of hardcoded `"nasa_pcoe"`
+- `save_feature_matrix` accepts `dataset` parameter for filename suffix
+- Feature matrix saved with per-dataset suffixes (e.g., `feature_matrix_nasa.parquet`)
 
 ## [0.4.0] - 2025-07-27
 
