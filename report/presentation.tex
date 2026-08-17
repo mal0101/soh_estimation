@@ -1,0 +1,279 @@
+\documentclass[aspectratio=169,11pt]{beamer}
+
+\usetheme{Madrid}
+\usecolortheme{default}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+\definecolor{classicalblue}{RGB}{33,150,243}
+\definecolor{dlred}{RGB}{255,87,34}
+
+\title{Benchmarking ML/DL Models for\\Lithium-Ion Battery SOH Estimation}
+\author{Malak Mekyassi}
+\institute{Capgemini Engineering}
+\date{August 2025}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}{Outline}
+\tableofcontents
+\end{frame}
+
+\section{Problem \& Motivation}
+
+\begin{frame}{Why SOH Estimation Matters}
+\begin{itemize}[nosep]
+    \item \textbf{Safety:} detect abnormal degradation before thermal events
+    \item \textbf{Warranty:} fair residual value for second-life reuse
+    \item \textbf{Charging:} adaptive strategies to extend battery lifetime
+    \item \textbf{Range:} accurate remaining capacity estimates for drivers
+\end{itemize}
+\vspace{0.5em}
+\textbf{Challenge:} SOH cannot be measured directly in deployed vehicles. BMS only has access to voltage, current, and temperature.
+\end{frame}
+
+\begin{frame}{Research Question}
+\begin{block}{How do classical ML and DL models compare for SOH estimation?}
+\begin{itemize}[nosep]
+    \item 4 classical models: Naive, RF, SVR, GPR
+    \item 3 DL models: LSTM, 1D CNN, Transformer
+    \item 2 open datasets: NASA PCoE and CALCE CS2
+    \item Cell-based LOOCV to prevent data leakage
+\end{itemize}
+\end{block}
+\end{frame}
+
+\section{Datasets}
+
+\begin{frame}{Datasets Overview}
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Property} & \textbf{NASA PCoE} & \textbf{CALCE CS2} \\
+\midrule
+Cell chemistry & LCO (prismatic) & LCO (coin) \\
+Cells & 4 (B0005--B0018) & 4 (CS2\_33--CS2\_36) \\
+Rated capacity & 2.0 Ah & 1.1 Ah \\
+Discharge cycles/cell & 168 & 775--973 \\
+Total cycles & 636 & 3,543 \\
+EIS measurements & Yes & No \\
+\bottomrule
+\end{tabular}
+\end{table}
+\vspace{0.5em}
+\textbf{Key difference:} CALCE has $\sim$6$\times$ more training data than NASA.
+\end{frame}
+
+\section{Methodology}
+
+\begin{frame}{Preprocessing Pipeline}
+\begin{enumerate}[nosep]
+    \item \textbf{Cycle segmentation} --- separate charge/discharge/impedance
+    \item \textbf{Capacity computation} --- current integration via trapezoidal rule
+    \item \textbf{Voltage filtering} --- Savitzky-Golay (window=51, order=3)
+    \item \textbf{Resampling} --- uniform capacity grid (1,000 points)
+    \item \textbf{SOH labeling} --- $SOH(n) = Q_{discharge}(n) / Q_{initial}$
+    \item \textbf{Partial cycle filtering} --- discard early cycles $<$ 90\% of Q\_initial
+\end{enumerate}
+\end{frame}
+
+\begin{frame}{Feature Engineering --- 12 Features}
+\begin{columns}
+\column{0.5\textwidth}
+\textbf{Physical Features}
+\begin{itemize}[nosep,small]
+    \item ICA: peak voltage, height, area, secondary ratio
+    \item Internal resistance: $\Delta V / \Delta I$
+    \item Discharge energy: $\int V \cdot I \, dt$
+    \item Mean discharge voltage
+    \item Coulombic efficiency: $Q_{dis} / Q_{chg}$
+    \item Temperature: mean, range
+    \item Capacity fade rate
+\end{itemize}
+
+\column{0.5\textwidth}
+\textbf{Feature Selection}
+\begin{enumerate}[nosep,small]
+    \item Correlation filter ($|r| > 0.95$)
+    \item RF importance ranking (top 10)
+\end{enumerate}
+\vspace{1em}
+Top features:
+\begin{enumerate}[nosep,small]
+    \item discharge\_energy
+    \item mean\_discharge\_voltage
+    \item internal\_resistance
+    \item capacity\_fade\_rate
+\end{enumerate}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Models \& Validation}
+\begin{columns}
+\column{0.5\textwidth}
+\textbf{Classical ML}
+\begin{itemize}[nosep,small]
+    \item \textbf{RF:} 200 trees, depth 20
+    \item \textbf{SVR:} RBF, $C$=100, $\epsilon$=0.01
+    \item \textbf{GPR:} Mat\'ern 1/2 kernel
+    \item \textbf{Naive:} predict mean
+\end{itemize}
+
+\column{0.5\textwidth}
+\textbf{Deep Learning}
+\begin{itemize}[nosep,small]
+    \item \textbf{LSTM:} 2-layer (64$\to$32)
+    \item \textbf{1D CNN:} 3 conv layers
+    \item \textbf{Transformer:} 2 blocks, 4 heads
+\end{itemize}
+\vspace{0.5em}
+\textbf{Validation:} Cell-based LOOCV\\
+\textbf{Window:} 20 consecutive cycles
+\end{columns}
+\end{frame}
+
+\section{Results}
+
+\begin{frame}{CALCE CS2 Results}
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Model} & \textbf{RMSE} & \textbf{MAE} & \textbf{MaxAE} & \textbf{$R^2$} \\
+\midrule
+Naive & 0.1761 & 0.1236 & 0.6234 & $-$0.147 \\
+\textbf{RF} & \textbf{0.0226} & \textbf{0.0137} & \textbf{0.0905} & \textbf{0.969} \\
+SVR & 0.0593 & 0.0258 & 0.4388 & 0.870 \\
+GPR & 0.0368 & 0.0151 & 0.4386 & 0.844 \\
+\midrule
+LSTM & 0.0611 & --- & --- & 0.781 \\
+1D CNN & 0.1438 & --- & --- & $-$0.062 \\
+\textbf{Transformer} & \textbf{0.0425} & --- & --- & \textbf{0.914} \\
+\bottomrule
+\end{tabular}
+\end{table}
+\vspace{-0.5em}
+\begin{itemize}[nosep,small]
+    \item RF best overall (RMSE~=~0.023, $R^2$~=~0.969)
+    \item Transformer competitive with sufficient data (RMSE~=~0.043, $R^2$~=~0.914)
+\end{itemize}
+\end{frame}
+
+\begin{frame}{NASA PCoE Results}
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Model} & \textbf{RMSE} & \textbf{MAE} & \textbf{MaxAE} & \textbf{$R^2$} \\
+\midrule
+Naive & 0.1120 & 0.0965 & 0.2029 & $-$0.285 \\
+\textbf{RF} & \textbf{0.0266} & 0.0196 & 0.0838 & \textbf{0.918} \\
+SVR & 0.0599 & 0.0106 & 0.0540 & 0.580 \\
+GPR & 0.0366 & 0.0272 & 0.0977 & 0.835 \\
+\midrule
+LSTM & 0.0476 & --- & --- & $-$0.135 \\
+1D CNN & 0.1040 & --- & --- & $-$2.504 \\
+Transformer & 0.0673 & --- & --- & $-$0.142 \\
+\bottomrule
+\end{tabular}
+\end{table}
+\vspace{-0.5em}
+\begin{itemize}[nosep,small]
+    \item RF again best (RMSE~=~0.027, $R^2$~=~0.918)
+    \item All DL models have negative $R^2$ --- 636 cycles too few for DL
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Cross-Dataset Comparison}
+\begin{columns}
+\column{0.5\textwidth}
+\begin{center}
+\textbf{NASA PCoE (636 cycles)}\\[0.5em]
+\begin{tabular}{cc}
+\toprule
+Model & $R^2$ \\
+\midrule
+RF & 0.918 \\
+GPR & 0.835 \\
+SVR & 0.580 \\
+Transformer & $-$0.142 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\column{0.5\textwidth}
+\begin{center}
+\textbf{CALCE CS2 (3,543 cycles)}\\[0.5em]
+\begin{tabular}{cc}
+\toprule
+Model & $R^2$ \\
+\midrule
+RF & 0.969 \\
+Transformer & 0.914 \\
+SVR & 0.870 \\
+GPR & 0.844 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{columns}
+\vspace{1em}
+\textbf{Key insight:} DL needs $\geq$3,000+ cycles to become competitive. Classical ML works well with $<$1,000 cycles.
+\end{frame}
+
+\section{Discussion}
+
+\begin{frame}{Key Findings}
+\begin{enumerate}[nosep]
+    \item \textbf{RF is the best overall model:} RMSE~=~0.023 on CALCE, 0.027 on NASA. Robust, fast, interpretable.
+    \item \textbf{DL needs data:} Transformer achieves $R^2$~=~0.914 on CALCE (3,543 cycles) but $R^2$~=~$-$0.142 on NASA (636 cycles).
+    \item \textbf{CNN fails:} Insufficient temporal structure in per-cycle feature vectors for convolutional learning.
+    \item \textbf{Feature importance:} discharge\_energy, mean\_voltage, internal\_resistance, fade\_rate are most predictive --- aligns with electrochemistry.
+    \item \textbf{Deployability:} Classical models: 0.1--0.4s inference. DL: 5--16s. RF/SVR preferred for embedded BMS.
+\end{enumerate}
+\end{frame}
+
+\begin{frame}{Practical Recommendations}
+\begin{block}{For BMS Deployment}
+\begin{itemize}[nosep]
+    \item \textbf{RF} or \textbf{SVR} with handcrafted features --- best accuracy, fastest inference
+    \item \textbf{Transformer} if large training dataset is available ($\geq$3,000 cycles)
+    \item \textbf{Avoid CNN} for this task --- consistently underperforms
+\end{itemize}
+\end{block}
+\vspace{1em}
+\begin{block}{For Research}
+\begin{itemize}[nosep]
+    \item Cross-dataset transfer learning as next step
+    \item Calendar aging effects not captured in cycling data
+    \item More diverse cells/conditions needed for DL generalization
+\end{itemize}
+\end{block}
+\end{frame}
+
+\begin{frame}{Conclusion}
+\begin{itemize}[nosep]
+    \item Systematic benchmark of 7 models on 2 datasets ($\sim$4,200 cycles total)
+    \item Random Forest achieves state-of-the-art on both datasets
+    \item Deep learning shows promise but requires $\geq$6$\times$ more data than classical ML
+    \item Feature engineering is critical: 12 physical features capture degradation physics
+    \item Open-source pipeline for reproducible SOH benchmarking
+\end{itemize}
+\vspace{1em}
+\begin{center}
+\textbf{Thank you!}\\
+\vspace{0.5em}
+\small Code: \texttt{github.com/mal0101/soh\_estimation}
+\end{center}
+\end{frame}
+
+\end{document}
