@@ -107,7 +107,7 @@ def extract_ica_features(
 
     if half_max > 0:
         left_mask = dQdV_clean[:primary_peak] >= half_max
-        right_mask = dQdV_clean[primary_peak + 1:] >= half_max
+        right_mask = dQdV_clean[primary_peak + 1 :] >= half_max
 
         left_idx = np.where(left_mask)[0]
         right_idx = np.where(right_mask)[0]
@@ -124,17 +124,15 @@ def extract_ica_features(
     if len(peak_voltages) > 1:
         positive_mask = peak_dqdV > 0
         if np.any(positive_mask):
-            features["ica_peak_area"] = float(abs(_trapz(
-                peak_dqdV[positive_mask], peak_voltages[positive_mask]
-            )))
+            features["ica_peak_area"] = float(
+                abs(_trapz(peak_dqdV[positive_mask], peak_voltages[positive_mask]))
+            )
 
     if len(peaks) >= 2:
         secondary_idx = np.argsort(prominences)[-2]
         secondary_peak = peaks[secondary_idx]
         secondary_height = float(dQdV_clean[secondary_peak])
         if secondary_height > 0:
-            features["ica_secondary_ratio"] = (
-                features["ica_peak_height"] / secondary_height
-            )
+            features["ica_secondary_ratio"] = features["ica_peak_height"] / secondary_height
 
     return features

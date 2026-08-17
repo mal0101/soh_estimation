@@ -50,8 +50,11 @@ class TestICA:
         cycle = _make_discharge_cycle()
         feats = extract_ica_features(cycle["voltage_resampled"], cycle["capacity_grid"])
         expected_keys = {
-            "ica_peak_height", "ica_peak_voltage", "ica_peak_area",
-            "ica_peak_fwhm", "ica_secondary_ratio",
+            "ica_peak_height",
+            "ica_peak_voltage",
+            "ica_peak_area",
+            "ica_peak_fwhm",
+            "ica_secondary_ratio",
         }
         assert expected_keys == set(feats.keys())
 
@@ -145,18 +148,20 @@ class TestAssembly:
                 time_arr = np.linspace(0, 3600, n)
                 temp = np.full(n, 25.0)
                 capacity = np.abs(np.cumsum(current * np.diff(time_arr, prepend=0) / 3600))
-                cycles.append({
-                    "type": "discharge",
-                    "cycle_number": cn,
-                    "voltage": voltage,
-                    "current": current,
-                    "time": time_arr,
-                    "temperature": temp,
-                    "capacity": capacity,
-                    "voltage_resampled": voltage,
-                    "capacity_grid": capacity,
-                    "eis": None,
-                })
+                cycles.append(
+                    {
+                        "type": "discharge",
+                        "cycle_number": cn,
+                        "voltage": voltage,
+                        "current": current,
+                        "time": time_arr,
+                        "temperature": temp,
+                        "capacity": capacity,
+                        "voltage_resampled": voltage,
+                        "capacity_grid": capacity,
+                        "eis": None,
+                    }
+                )
             cells[cell_id] = {
                 "q_initial": 2.0,
                 "rated_capacity": 2.0,
@@ -171,13 +176,15 @@ class TestAssembly:
         soh_records = []
         for cell_id, cell in cells.items():
             for c in cell["cycles"]:
-                soh_records.append({
-                    "cell_id": cell_id,
-                    "dataset": "test",
-                    "cycle_number": c["cycle_number"],
-                    "soh": 0.95,
-                    "rated_capacity": 2.0,
-                })
+                soh_records.append(
+                    {
+                        "cell_id": cell_id,
+                        "dataset": "test",
+                        "cycle_number": c["cycle_number"],
+                        "soh": 0.95,
+                        "rated_capacity": 2.0,
+                    }
+                )
         soh_df = pd.DataFrame(soh_records)
         df = build_feature_matrix(cells, soh_df)
         assert len(df) > 0
@@ -188,33 +195,37 @@ class TestAssembly:
         rng = np.random.RandomState(42)
         n = 50
         x = rng.randn(n)
-        df = pd.DataFrame({
-            "cell_id": ["A"] * n,
-            "dataset": ["test"] * n,
-            "cycle_number": range(n),
-            "soh": 0.9 + 0.1 * x,
-            "feat_a": x,
-            "feat_b": x * 0.5 + rng.randn(n) * 0.1,
-            "feat_c": rng.randn(n),
-            "feat_d": rng.randn(n),
-            "feat_e": rng.randn(n),
-            "feat_constant": np.full(n, 5.0),
-        })
+        df = pd.DataFrame(
+            {
+                "cell_id": ["A"] * n,
+                "dataset": ["test"] * n,
+                "cycle_number": range(n),
+                "soh": 0.9 + 0.1 * x,
+                "feat_a": x,
+                "feat_b": x * 0.5 + rng.randn(n) * 0.1,
+                "feat_c": rng.randn(n),
+                "feat_d": rng.randn(n),
+                "feat_e": rng.randn(n),
+                "feat_constant": np.full(n, 5.0),
+            }
+        )
         _, selected = select_features(df, top_k=5)
         assert "feat_constant" not in selected
 
     def test_correlation_filter_one_of_pair(self):
         rng = np.random.RandomState(42)
         x = rng.randn(50)
-        df = pd.DataFrame({
-            "cell_id": ["A"] * 50,
-            "dataset": ["test"] * 50,
-            "cycle_number": range(50),
-            "soh": rng.randn(50),
-            "a": x,
-            "b": x + rng.randn(50) * 0.001,
-            "c": rng.randn(50),
-        })
+        df = pd.DataFrame(
+            {
+                "cell_id": ["A"] * 50,
+                "dataset": ["test"] * 50,
+                "cycle_number": range(50),
+                "soh": rng.randn(50),
+                "a": x,
+                "b": x + rng.randn(50) * 0.001,
+                "c": rng.randn(50),
+            }
+        )
         _, selected = select_features(df, correlation_threshold=0.99, top_k=5)
         a_in = "a" in selected
         b_in = "b" in selected

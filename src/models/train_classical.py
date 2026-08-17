@@ -50,7 +50,7 @@ def run_classical_pipeline(config_path: str = "config/default.yaml", dataset: st
     folds = cell_based_loocv(feature_df, feature_cols)
     save_fold_indices(folds, output_dir="experiments")
 
-    results = {
+    results: dict[str, dict[str, list]] = {
         "naive": {"fold_metrics": [], "fold_times": []},
         "rf": {"fold_metrics": [], "fold_times": []},
         "svr": {"fold_metrics": [], "fold_times": []},
@@ -68,7 +68,9 @@ def run_classical_pipeline(config_path: str = "config/default.yaml", dataset: st
         logger.info("Fold %d (test cell: %s)", fold_idx, fold["test_cell"])
         logger.info("=" * 60)
 
-        with start_run(run_name=f"fold_{fold_idx}_naive", tags={"fold": str(fold_idx), "model": "naive"}):
+        with start_run(
+            run_name=f"fold_{fold_idx}_naive", tags={"fold": str(fold_idx), "model": "naive"}
+        ):
             t0 = time.perf_counter()
             baseline = NaiveBaseline().fit(X_train_s, y_train)
             y_pred = baseline.predict(X_test_s)
@@ -84,7 +86,10 @@ def run_classical_pipeline(config_path: str = "config/default.yaml", dataset: st
             t0 = time.perf_counter()
             rf_cfg = config["models"]["classical"]["rf"]
             model, best_params, metrics = train_rf(
-                X_train_s, y_train, X_test_s, y_test,
+                X_train_s,
+                y_train,
+                X_test_s,
+                y_test,
                 n_trials=rf_cfg["n_trials"],
                 param_space={
                     "n_estimators": tuple(rf_cfg["param_space"]["n_estimators"]),
@@ -100,11 +105,16 @@ def run_classical_pipeline(config_path: str = "config/default.yaml", dataset: st
             results["rf"]["fold_times"].append(elapsed)
             logger.info("RF RMSE=%.6f R2=%.4f (%.1fs)", metrics["rmse"], metrics["r2"], elapsed)
 
-        with start_run(run_name=f"fold_{fold_idx}_svr", tags={"fold": str(fold_idx), "model": "svr"}):
+        with start_run(
+            run_name=f"fold_{fold_idx}_svr", tags={"fold": str(fold_idx), "model": "svr"}
+        ):
             t0 = time.perf_counter()
             svr_cfg = config["models"]["classical"]["svr"]
             model, best_params, metrics = train_svr(
-                X_train_s, y_train, X_test_s, y_test,
+                X_train_s,
+                y_train,
+                X_test_s,
+                y_test,
                 n_trials=svr_cfg["n_trials"],
                 param_space={
                     "C": tuple(svr_cfg["param_space"]["C"]),
@@ -119,11 +129,16 @@ def run_classical_pipeline(config_path: str = "config/default.yaml", dataset: st
             results["svr"]["fold_times"].append(elapsed)
             logger.info("SVR RMSE=%.6f R2=%.4f (%.1fs)", metrics["rmse"], metrics["r2"], elapsed)
 
-        with start_run(run_name=f"fold_{fold_idx}_gpr", tags={"fold": str(fold_idx), "model": "gpr"}):
+        with start_run(
+            run_name=f"fold_{fold_idx}_gpr", tags={"fold": str(fold_idx), "model": "gpr"}
+        ):
             t0 = time.perf_counter()
             gpr_cfg = config["models"]["classical"]["gpr"]
             model, metrics = train_gpr(
-                X_train_s, y_train, X_test_s, y_test,
+                X_train_s,
+                y_train,
+                X_test_s,
+                y_test,
                 max_train_samples=gpr_cfg["max_train_samples"],
                 n_restarts=gpr_cfg["n_restarts_optimizer"],
             )
@@ -144,10 +159,17 @@ def run_classical_pipeline(config_path: str = "config/default.yaml", dataset: st
             agg[f"{metric}_std"] = float(np.std(vals))
         agg["inference_time_mean_s"] = float(np.mean(data["fold_times"]))
         summary[model_name] = agg
-        logger.info("%s: RMSE=%.6f±%.6f R2=%.4f±%.4f",
-                     model_name, agg["rmse_mean"], agg["rmse_std"], agg["r2_mean"], agg["r2_std"])
+        logger.info(
+            "%s: RMSE=%.6f±%.6f R2=%.4f±%.4f",
+            model_name,
+            agg["rmse_mean"],
+            agg["rmse_std"],
+            agg["r2_mean"],
+            agg["r2_std"],
+        )
 
     results_path = Path("experiments") / f"classical_results{suffix}.yaml"
+    results_path.parent.mkdir(parents=True, exist_ok=True)
     with open(results_path, "w") as f:
         yaml.dump(summary, f, default_flow_style=False)
     logger.info("Results saved to %s", results_path)

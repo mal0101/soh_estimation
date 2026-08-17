@@ -5,6 +5,7 @@ and provides rank-based analysis.
 """
 
 import logging
+from typing import Any
 
 import pandas as pd
 
@@ -31,7 +32,7 @@ def build_comparison_table(
 
     rows = []
     for model_name, model_metrics in results.items():
-        row = {"Model": model_name}
+        row: dict[str, Any] = {"Model": model_name}
         for m in metrics:
             mean_key = f"{m}_mean"
             std_key = f"{m}_std"
@@ -62,11 +63,13 @@ def rank_models(
     records = []
     for model_name, metrics in results.items():
         if primary_metric in metrics:
-            records.append({
-                "Model": model_name,
-                primary_metric: metrics[primary_metric],
-            })
+            records.append(
+                {
+                    "Model": model_name,
+                    primary_metric: metrics[primary_metric],
+                }
+            )
 
-    df = pd.DataFrame(records).sort_values(primary_metric).reset_index(drop=True)
+    df = pd.DataFrame(records).sort_values(primary_metric, kind="mergesort").reset_index(drop=True)
     df.insert(0, "Rank", range(1, len(df) + 1))
     return df

@@ -39,6 +39,11 @@ dev = [
     "mypy>=1.8,<2.0",
 ]
 
+[project.scripts]
+soh-preprocess = "src.preprocessing.pipeline:main"
+soh-train-classical = "src.models.train_classical:main"
+soh-train-dl = "src.models.train_dl:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["src*"]

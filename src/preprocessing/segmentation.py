@@ -110,7 +110,7 @@ def segment_from_current(
     if len(current) != len(time):
         raise ValueError("current and time must have the same length")
 
-    segments = []
+    segments: list[dict[str, Any]] = []
     if len(current) < 2:
         return segments
 
@@ -125,22 +125,26 @@ def segment_from_current(
     for i in range(1, len(current)):
         seg_type = classify(current[i])
         if seg_type != current_type:
-            segments.append({
-                "start_idx": start_idx,
-                "end_idx": i - 1,
-                "cycle_type": current_type,
-                "start_time": float(time[start_idx]),
-                "end_time": float(time[i - 1]),
-            })
+            segments.append(
+                {
+                    "start_idx": start_idx,
+                    "end_idx": i - 1,
+                    "cycle_type": current_type,
+                    "start_time": float(time[start_idx]),
+                    "end_time": float(time[i - 1]),
+                }
+            )
             start_idx = i
             current_type = seg_type
 
-    segments.append({
-        "start_idx": start_idx,
-        "end_idx": len(current) - 1,
-        "cycle_type": current_type,
-        "start_time": float(time[start_idx]),
-        "end_time": float(time[-1]),
-    })
+    segments.append(
+        {
+            "start_idx": start_idx,
+            "end_idx": len(current) - 1,
+            "cycle_type": current_type,
+            "start_time": float(time[start_idx]),
+            "end_time": float(time[-1]),
+        }
+    )
 
     return segments

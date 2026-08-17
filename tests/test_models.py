@@ -46,7 +46,10 @@ class TestRF:
     def test_returns_correct_shape(self, train_test_data):
         X_tr, y_tr, X_te, y_te = train_test_data
         model, params, metrics = train_rf(
-            X_tr, y_tr, X_te, y_te,
+            X_tr,
+            y_tr,
+            X_te,
+            y_te,
             n_trials=3,
             param_space={
                 "n_estimators": (50, 100),
@@ -62,7 +65,11 @@ class TestRF:
     def test_metrics_keys(self, train_test_data):
         X_tr, y_tr, X_te, y_te = train_test_data
         _, _, metrics = train_rf(
-            X_tr, y_tr, X_te, y_te, n_trials=3,
+            X_tr,
+            y_tr,
+            X_te,
+            y_te,
+            n_trials=3,
             param_space={
                 "n_estimators": (50, 100),
                 "max_depth": [5],
@@ -75,7 +82,11 @@ class TestRF:
     def test_rmse_reasonable(self, train_test_data):
         X_tr, y_tr, X_te, y_te = train_test_data
         _, _, metrics = train_rf(
-            X_tr, y_tr, X_te, y_te, n_trials=5,
+            X_tr,
+            y_tr,
+            X_te,
+            y_te,
+            n_trials=5,
             param_space={
                 "n_estimators": (50, 100),
                 "max_depth": [10, None],
@@ -97,7 +108,11 @@ class TestSVR:
     def test_returns_correct_shape(self, train_test_data):
         X_tr, y_tr, X_te, y_te = train_test_data
         model, params, metrics = train_svr(
-            X_tr, y_tr, X_te, y_te, n_trials=3,
+            X_tr,
+            y_tr,
+            X_te,
+            y_te,
+            n_trials=3,
             param_space={
                 "C": (0.1, 10),
                 "epsilon": (0.001, 0.05),
@@ -110,7 +125,11 @@ class TestSVR:
     def test_rmse_reasonable(self, train_test_data):
         X_tr, y_tr, X_te, y_te = train_test_data
         _, _, metrics = train_svr(
-            X_tr, y_tr, X_te, y_te, n_trials=5,
+            X_tr,
+            y_tr,
+            X_te,
+            y_te,
+            n_trials=5,
             param_space={
                 "C": (0.1, 100),
                 "epsilon": (0.001, 0.1),
@@ -131,7 +150,10 @@ class TestGPR:
     def test_returns_correct_shape(self, train_test_data):
         X_tr, y_tr, X_te, y_te = train_test_data
         model, metrics = train_gpr(
-            X_tr, y_tr, X_te, y_te,
+            X_tr,
+            y_tr,
+            X_te,
+            y_te,
             max_train_samples=1000,
             n_restarts=1,
         )
@@ -141,7 +163,10 @@ class TestGPR:
     def test_subsampling(self, train_test_data):
         X_tr, y_tr, X_te, y_te = train_test_data
         model, metrics = train_gpr(
-            X_tr, y_tr, X_te, y_te,
+            X_tr,
+            y_tr,
+            X_te,
+            y_te,
             max_train_samples=30,
             n_restarts=1,
         )
@@ -150,7 +175,10 @@ class TestGPR:
     def test_small_dataset(self, train_test_data):
         X_tr, y_tr, X_te, y_te = train_test_data
         model, metrics = train_gpr(
-            X_tr, y_tr, X_te, y_te,
+            X_tr,
+            y_tr,
+            X_te,
+            y_te,
             max_train_samples=1000,
             n_restarts=1,
         )

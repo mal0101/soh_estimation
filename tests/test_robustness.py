@@ -60,27 +60,33 @@ class TestNoiseInjection:
     """Tests for Gaussian noise robustness."""
 
     def test_no_crash(self):
-        df = pd.DataFrame({
-            "cell_id": ["A"] * 20,
-            "feat_1": np.random.randn(20),
-            "feat_2": np.random.randn(20),
-        })
+        df = pd.DataFrame(
+            {
+                "cell_id": ["A"] * 20,
+                "feat_1": np.random.randn(20),
+                "feat_2": np.random.randn(20),
+            }
+        )
         noisy = inject_gaussian_noise(df, ["feat_1", "feat_2"], noise_fraction=0.01)
         assert len(noisy) == len(df)
 
     def test_values_change(self):
-        df = pd.DataFrame({
-            "cell_id": ["A"] * 20,
-            "feat_1": np.random.RandomState(0).randn(20),
-        })
+        df = pd.DataFrame(
+            {
+                "cell_id": ["A"] * 20,
+                "feat_1": np.random.RandomState(0).randn(20),
+            }
+        )
         noisy = inject_gaussian_noise(df, ["feat_1"], noise_fraction=0.1)
         assert not np.allclose(df["feat_1"].values, noisy["feat_1"].values)
 
     def test_original_unchanged(self):
-        df = pd.DataFrame({
-            "cell_id": ["A"] * 20,
-            "feat_1": np.random.RandomState(0).randn(20),
-        })
+        df = pd.DataFrame(
+            {
+                "cell_id": ["A"] * 20,
+                "feat_1": np.random.RandomState(0).randn(20),
+            }
+        )
         original = df["feat_1"].values.copy()
         _ = inject_gaussian_noise(df, ["feat_1"], noise_fraction=0.1)
         np.testing.assert_array_equal(df["feat_1"].values, original)
@@ -90,27 +96,33 @@ class TestMissingCycles:
     """Tests for missing cycle robustness."""
 
     def test_no_crash(self):
-        df = pd.DataFrame({
-            "cell_id": ["A"] * 20,
-            "cycle_number": range(20),
-            "soh": np.linspace(1, 0.8, 20),
-        })
+        df = pd.DataFrame(
+            {
+                "cell_id": ["A"] * 20,
+                "cycle_number": range(20),
+                "soh": np.linspace(1, 0.8, 20),
+            }
+        )
         reduced = drop_random_cycles(df, fraction=0.2)
         assert len(reduced) == 16
 
     def test_preserves_cells(self):
-        df = pd.DataFrame({
-            "cell_id": ["A"] * 20 + ["B"] * 20,
-            "cycle_number": list(range(20)) * 2,
-            "soh": list(np.linspace(1, 0.8, 20)) * 2,
-        })
+        df = pd.DataFrame(
+            {
+                "cell_id": ["A"] * 20 + ["B"] * 20,
+                "cycle_number": list(range(20)) * 2,
+                "soh": list(np.linspace(1, 0.8, 20)) * 2,
+            }
+        )
         reduced = drop_random_cycles(df, fraction=0.3)
         assert set(reduced["cell_id"].unique()) == {"A", "B"}
 
     def test_drops_correct_fraction(self):
-        df = pd.DataFrame({
-            "cell_id": ["A"] * 100,
-            "cycle_number": range(100),
-        })
+        df = pd.DataFrame(
+            {
+                "cell_id": ["A"] * 100,
+                "cycle_number": range(100),
+            }
+        )
         reduced = drop_random_cycles(df, fraction=0.2)
         assert len(reduced) == 80

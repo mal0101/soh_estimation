@@ -5,6 +5,7 @@ per-cycle features and predicts the SOH of the final cycle.
 """
 
 import logging
+from typing import Any
 
 import numpy as np
 import optuna
@@ -138,7 +139,7 @@ def train_cnn(
     study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=seed))
     study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
 
-    best = study.best_params
+    best: dict[str, Any] = study.best_params
     logger.info("CNN best params: %s (RMSE=%.6f)", best, study.best_value)
 
     model = CNNModel(

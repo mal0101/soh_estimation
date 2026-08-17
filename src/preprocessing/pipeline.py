@@ -96,9 +96,7 @@ def preprocess_cell(
         Cell dict with preprocessed cycles (added: capacity_grid,
         voltage_filtered, voltage_resampled, cumulative_capacity).
     """
-    filtered = validate_cycles(
-        cell_data, q_initial, min_discharge_fraction=min_discharge_fraction
-    )
+    filtered = validate_cycles(cell_data, q_initial, min_discharge_fraction=min_discharge_fraction)
 
     preprocessed_cycles = []
     for cycle in filtered["cycles"]:
@@ -126,8 +124,6 @@ def run_pipeline(config_path: str = "config/default.yaml", dataset: str = "all")
         dataset: Which dataset to process: 'nasa', 'calce', or 'all'.
     """
     from src.utils.config import Config
-
-    logging.basicConfig(level=logging.INFO, format="%(name)s - %(message)s")
 
     config = Config.from_yaml(config_path)
     raw_dir = config.get("data.raw_dir", "data/raw")
@@ -202,12 +198,14 @@ def _log_pipeline_summary(processed_cells: dict[str, dict]) -> None:
         charge = sum(1 for c in cell_data["cycles"] if c["type"] == "charge")
         discharge = sum(1 for c in cell_data["cycles"] if c["type"] == "discharge")
         impedance = sum(1 for c in cell_data["cycles"] if c["type"] == "impedance")
-        has_resampled = any(
-            "voltage_resampled" in c for c in cell_data["cycles"]
-        )
+        has_resampled = any("voltage_resampled" in c for c in cell_data["cycles"])
         logger.info(
             "  %s: %d charge, %d discharge, %d impedance (resampled=%s)",
-            cell_id, charge, discharge, impedance, has_resampled,
+            cell_id,
+            charge,
+            discharge,
+            impedance,
+            has_resampled,
         )
     logger.info("=" * 70)
 
@@ -228,4 +226,26 @@ if __name__ == "__main__":
         help="Dataset to process: nasa, calce, or all (default: all)",
     )
     args = parser.parse_args()
+    logging.basicConfig(level=logging.INFO, format="%(name)s - %(message)s")
+    run_pipeline(args.config, dataset=args.dataset)
+
+
+def main() -> None:
+    """CLI entry point for the preprocessing pipeline."""
+    parser = argparse.ArgumentParser(description="Run the preprocessing pipeline")
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config/default.yaml",
+        help="Path to configuration YAML file",
+    )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        choices=["nasa", "calce", "all"],
+        default="all",
+        help="Dataset to process: nasa, calce, or all (default: all)",
+    )
+    args = parser.parse_args()
+    logging.basicConfig(level=logging.INFO, format="%(name)s - %(message)s")
     run_pipeline(args.config, dataset=args.dataset)

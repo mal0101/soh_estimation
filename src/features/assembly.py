@@ -57,15 +57,9 @@ def build_feature_matrix(
     records = []
 
     for cell_id, cell_data in processed_cells.items():
-        discharge_cycles = [
-            c for c in cell_data["cycles"] if c["type"] == "discharge"
-        ]
-        charge_cycles = [
-            c for c in cell_data["cycles"] if c["type"] == "charge"
-        ]
-        impedance_cycles = [
-            c for c in cell_data["cycles"] if c["type"] == "impedance"
-        ]
+        discharge_cycles = [c for c in cell_data["cycles"] if c["type"] == "discharge"]
+        charge_cycles = [c for c in cell_data["cycles"] if c["type"] == "charge"]
+        impedance_cycles = [c for c in cell_data["cycles"] if c["type"] == "impedance"]
 
         charge_caps = {}
         for cc in charge_cycles:
@@ -96,7 +90,8 @@ def build_feature_matrix(
             }
 
             ica_feats = extract_ica_features(
-                dc["voltage_resampled"], dc["capacity_grid"],
+                dc["voltage_resampled"],
+                dc["capacity_grid"],
                 min_peak_prominence=min_peak_prominence,
             )
             record.update(ica_feats)
@@ -164,8 +159,13 @@ def select_features(
         only the selected feature columns plus metadata columns.
     """
     metadata_cols = [
-        "cell_id", "dataset", "cycle_number", "soh",
-        "rated_capacity", "cutoff_voltage", "ambient_temperature",
+        "cell_id",
+        "dataset",
+        "cycle_number",
+        "soh",
+        "rated_capacity",
+        "cutoff_voltage",
+        "ambient_temperature",
         "discharge_capacity",
     ]
     feature_cols = [c for c in feature_df.columns if c not in metadata_cols]
@@ -189,8 +189,7 @@ def select_features(
     to_drop = set()
     for col in upper.columns:
         correlated = [
-            c for c in upper.index[upper[col] > correlation_threshold]
-            if c not in to_drop
+            c for c in upper.index[upper[col] > correlation_threshold] if c not in to_drop
         ]
         if correlated:
             to_drop.add(col)
@@ -198,7 +197,9 @@ def select_features(
     remaining_cols = [c for c in valid_cols if c not in to_drop]
     logger.info(
         "Correlation filter: %d -> %d features (dropped %d)",
-        len(valid_cols), len(remaining_cols), len(to_drop),
+        len(valid_cols),
+        len(remaining_cols),
+        len(to_drop),
     )
 
     complete_mask = feature_df[remaining_cols].notna().all(axis=1)

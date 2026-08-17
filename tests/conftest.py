@@ -38,17 +38,19 @@ def feature_df_small():
     for cell_id in ["cell_A", "cell_B", "cell_C"]:
         for cycle in range(1, 21):
             soh = 1.0 - 0.005 * cycle + rng.randn() * 0.01
-            records.append({
-                "cell_id": cell_id,
-                "dataset": "test",
-                "cycle_number": cycle,
-                "soh": soh,
-                "feat_1": rng.randn(),
-                "feat_2": rng.randn(),
-                "feat_3": rng.randn(),
-                "feat_4": rng.randn(),
-                "feat_5": rng.randn(),
-            })
+            records.append(
+                {
+                    "cell_id": cell_id,
+                    "dataset": "test",
+                    "cycle_number": cycle,
+                    "soh": soh,
+                    "feat_1": rng.randn(),
+                    "feat_2": rng.randn(),
+                    "feat_3": rng.randn(),
+                    "feat_4": rng.randn(),
+                    "feat_5": rng.randn(),
+                }
+            )
     return pd.DataFrame(records)
 
 

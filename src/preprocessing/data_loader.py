@@ -99,7 +99,9 @@ def _parse_nasa_cycle(raw_cycle: Any, cycle_number: int) -> dict[str, Any] | Non
 
     if cycle_type in ("charge", "discharge"):
         if not hasattr(data, "Voltage_measured"):
-            logger.warning("Cycle %d (%s): missing Voltage_measured, skipping", cycle_number, cycle_type)
+            logger.warning(
+                "Cycle %d (%s): missing Voltage_measured, skipping", cycle_number, cycle_type
+            )
             return None
 
         voltage = np.asarray(data.Voltage_measured, dtype=np.float64)
@@ -108,13 +110,17 @@ def _parse_nasa_cycle(raw_cycle: Any, cycle_number: int) -> dict[str, Any] | Non
         time = np.asarray(data.Time, dtype=np.float64)
 
         if voltage.size == 0 or np.all(np.isnan(voltage)):
-            logger.warning("Cycle %d (%s): empty or all-NaN voltage, skipping", cycle_number, cycle_type)
+            logger.warning(
+                "Cycle %d (%s): empty or all-NaN voltage, skipping", cycle_number, cycle_type
+            )
             return None
 
         if cycle_type == "discharge" and hasattr(data, "Capacity"):
             capacity = float(data.Capacity)
             if np.isnan(capacity) or capacity <= 0:
-                logger.warning("Cycle %d: invalid discharge capacity %.4f, skipping", cycle_number, capacity)
+                logger.warning(
+                    "Cycle %d: invalid discharge capacity %.4f, skipping", cycle_number, capacity
+                )
                 return None
 
     if cycle_type == "impedance":
@@ -203,9 +209,7 @@ def load_calce_cell(cell_dir: str | Path) -> dict[str, Any]:
 
             if charge_mask.sum() > 0:
                 charge_rows = cycle_data[charge_mask]
-                charge_cycle = _parse_calce_cycle(
-                    charge_rows, global_cycle_counter, "charge"
-                )
+                charge_cycle = _parse_calce_cycle(charge_rows, global_cycle_counter, "charge")
                 if charge_cycle is not None:
                     all_cycles.append(charge_cycle)
 
@@ -238,9 +242,7 @@ def load_calce_cell(cell_dir: str | Path) -> dict[str, Any]:
     }
 
 
-def _parse_calce_cycle(
-    cycle_df: Any, cycle_number: int, cycle_type: str
-) -> dict[str, Any] | None:
+def _parse_calce_cycle(cycle_df: Any, cycle_number: int, cycle_type: str) -> dict[str, Any] | None:
     """Parse a single CALCE cycle from a DataFrame slice.
 
     Args:

@@ -54,7 +54,7 @@ def run_dl_pipeline(config_path: str = "config/default.yaml", dataset: str = "al
     device = device_manager()
 
     folds = cell_based_loocv(feature_df, feature_cols)
-    results = {
+    results: dict[str, dict[str, list]] = {
         "lstm": {"fold_metrics": [], "fold_times": []},
         "cnn": {"fold_metrics": [], "fold_times": []},
         "transformer": {"fold_metrics": [], "fold_times": []},
@@ -100,7 +100,10 @@ def run_dl_pipeline(config_path: str = "config/default.yaml", dataset: str = "al
                     model_cfg = dl_cfg.get(model_name, {})
                     n_trials = model_cfg.get("n_trials", 10)
                     best_params, metrics = trainer(
-                        X_train, y_train, X_test, y_test,
+                        X_train,
+                        y_train,
+                        X_test,
+                        y_test,
                         config=dl_cfg,
                         device=device,
                         seed=seed,
@@ -115,7 +118,11 @@ def run_dl_pipeline(config_path: str = "config/default.yaml", dataset: str = "al
                     seed_times.append(elapsed)
                     logger.info(
                         "%s seed=%d RMSE=%.6f R2=%.4f (%.1fs)",
-                        model_name, seed, metrics["rmse"], metrics["r2"], elapsed,
+                        model_name,
+                        seed,
+                        metrics["rmse"],
+                        metrics["r2"],
+                        elapsed,
                     )
 
             if seed_metrics:
@@ -142,8 +149,11 @@ def run_dl_pipeline(config_path: str = "config/default.yaml", dataset: str = "al
         summary[model_name] = agg
         logger.info(
             "%s: RMSE=%.6f±%.6f R2=%.4f±%.4f",
-            model_name, agg["rmse_mean"], agg.get("rmse_std", 0),
-            agg["r2_mean"], agg.get("r2_std", 0),
+            model_name,
+            agg["rmse_mean"],
+            agg.get("rmse_std", 0),
+            agg["r2_mean"],
+            agg.get("r2_std", 0),
         )
 
     results_path = Path("experiments") / f"dl_results{suffix}.yaml"

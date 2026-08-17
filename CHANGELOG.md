@@ -19,12 +19,31 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Updated final comparison notebook with multi-dataset results
 - LaTeX technical report (`report/main.tex`) — 8-page benchmark study
 - Beamer presentation (`report/presentation.tex`) — 11 slides
-- Fixed savgol_filter_voltage edge case for short signal arrays
+- `console_scripts` entry points: `soh-preprocess`, `soh-train-classical`, `soh-train-dl`
+- Input shape validation in `captum_integrated_gradients`
+- `target_size_mb` parameter in `deployability_report`
 
 ### Changed
 - `assembly.py` uses `cell_data["dataset"]` instead of hardcoded `"nasa_pcoe"`
 - `save_feature_matrix` accepts `dataset` parameter for filename suffix
 - Feature matrix saved with per-dataset suffixes (e.g., `feature_matrix_nasa.parquet`)
+- `deployability.py` imports `torch` lazily (no longer blocks classical-only usage)
+- `rank_models` uses stable sort (`kind="mergesort"`) for reproducible tie-breaking
+- `logging.basicConfig` moved from `run_pipeline()` to CLI entry points only
+- `train_classical.py` creates `experiments/` directory before writing results
+
+### Fixed
+- Fixed savgol_filter_voltage edge case for short signal arrays
+- `log_figures` now cleans up temporary files after logging
+- GUIDE.md: corrected CALCE EDA notebook status ("not yet implemented" → implemented)
+- GUIDE.md: corrected SOH labels column count (3 → 6)
+- GUIDE.md: updated directory tree with per-dataset data products and report files
+- GUIDE.md: fixed stale line-number references in Section 6
+- GUIDE.md: updated test count (102 → 113)
+- GUIDE.md: corrected `save_feature_matrix` example to include `dataset` parameter
+- data_dictionary.md: added per-dataset data products (NASA/CALCE parquets and pkls)
+- data_dictionary.md: added `discharge_capacity` column documentation
+- CHANGELOG.md: captured all post-0.4.0 commits
 
 ## [0.4.0] - 2025-07-27
 

@@ -30,7 +30,7 @@ class SOHDataset(Dataset):
     def __init__(
         self,
         feature_matrix: pd.DataFrame,
-        feature_cols: list[str],
+        feature_cols: list[str] | list[int],
         window_size: int,
     ) -> None:
         """Initialize the dataset.
@@ -171,7 +171,9 @@ def train_loop(
 
 
 @torch.no_grad()
-def evaluate(model: nn.Module, loader: DataLoader, device: torch.device) -> tuple[np.ndarray, np.ndarray]:
+def evaluate(
+    model: nn.Module, loader: DataLoader, device: torch.device
+) -> tuple[np.ndarray, np.ndarray]:
     """Run inference and return true vs. predicted arrays.
 
     Args:

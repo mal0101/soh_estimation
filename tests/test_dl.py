@@ -31,14 +31,16 @@ def synthetic_feature_df():
     rng = np.random.RandomState(42)
     records = []
     for i in range(50):
-        records.append({
-            "cell_id": "cell_A",
-            "cycle_number": i,
-            "soh": 1.0 - 0.003 * i + rng.randn() * 0.01,
-            "feat_1": rng.randn(),
-            "feat_2": rng.randn(),
-            "feat_3": rng.randn(),
-        })
+        records.append(
+            {
+                "cell_id": "cell_A",
+                "cycle_number": i,
+                "soh": 1.0 - 0.003 * i + rng.randn() * 0.01,
+                "feat_1": rng.randn(),
+                "feat_2": rng.randn(),
+                "feat_3": rng.randn(),
+            }
+        )
     return pd.DataFrame(records)
 
 
@@ -100,13 +102,17 @@ class TestModels:
         assert out.shape == (4, 1)
 
     def test_cnn_forward(self, device):
-        model = CNNModel(input_dim=3, filters_list=[16, 32, 64], kernel_size=3, dense_dim=16, dropout=0.1)
+        model = CNNModel(
+            input_dim=3, filters_list=[16, 32, 64], kernel_size=3, dense_dim=16, dropout=0.1
+        )
         x = torch.randn(4, 10, 3)
         out = model(x)
         assert out.shape == (4, 1)
 
     def test_transformer_forward(self, device):
-        model = TransformerModel(input_dim=3, d_model=32, n_heads=2, n_blocks=1, ffn_dim=64, dropout=0.1)
+        model = TransformerModel(
+            input_dim=3, d_model=32, n_heads=2, n_blocks=1, ffn_dim=64, dropout=0.1
+        )
         x = torch.randn(4, 10, 3)
         out = model(x)
         assert out.shape == (4, 1)
@@ -129,13 +135,22 @@ class TestTrainLoop:
         X = rng.randn(50, 5, 3).astype(np.float32)
         y = (0.8 + 0.1 * X[:, -1, 0]).astype(np.float32)
 
-        dataset = list(zip(
-            [torch.tensor(x) for x in X],
-            [torch.tensor(v) for v in y], strict=False,
-        ))
+        dataset = list(
+            zip(
+                [torch.tensor(x) for x in X],
+                [torch.tensor(v) for v in y],
+                strict=False,
+            )
+        )
         loader = DataLoader(dataset, batch_size=16, shuffle=True)
 
-        config = {"learning_rate": 0.01, "max_epochs": 20, "patience_early_stopping": 20, "patience_lr_reduce": 10, "lr_reduce_factor": 0.5}
+        config = {
+            "learning_rate": 0.01,
+            "max_epochs": 20,
+            "patience_early_stopping": 20,
+            "patience_lr_reduce": 10,
+            "lr_reduce_factor": 0.5,
+        }
         history = train_loop(model, loader, loader, config, device, seed=42)
         assert len(history["train_loss"]) > 5
         assert history["train_loss"][-1] < history["train_loss"][0]
@@ -147,11 +162,23 @@ class TestTrainLoop:
         y_train = np.random.RandomState(0).randn(30).astype(np.float32)
         X_val = np.random.RandomState(1).randn(10, 5, 2).astype(np.float32)
         y_val = np.random.RandomState(1).randn(10).astype(np.float32)
-        train_ds = list(zip([torch.tensor(x) for x in X_train], [torch.tensor(v) for v in y_train], strict=False))
-        val_ds = list(zip([torch.tensor(x) for x in X_val], [torch.tensor(v) for v in y_val], strict=False))
+        train_ds = list(
+            zip(
+                [torch.tensor(x) for x in X_train], [torch.tensor(v) for v in y_train], strict=False
+            )
+        )
+        val_ds = list(
+            zip([torch.tensor(x) for x in X_val], [torch.tensor(v) for v in y_val], strict=False)
+        )
         train_loader = DataLoader(train_ds, batch_size=16)
         val_loader = DataLoader(val_ds, batch_size=10)
-        config = {"learning_rate": 0.001, "max_epochs": 200, "patience_early_stopping": 3, "patience_lr_reduce": 2, "lr_reduce_factor": 0.5}
+        config = {
+            "learning_rate": 0.001,
+            "max_epochs": 200,
+            "patience_early_stopping": 3,
+            "patience_lr_reduce": 2,
+            "lr_reduce_factor": 0.5,
+        }
         history = train_loop(model, train_loader, val_loader, config, device, seed=42)
         assert len(history["train_loss"]) < 200
 
@@ -163,7 +190,9 @@ class TestEvaluate:
         model = LSTMModel(input_dim=3, hidden_1=8, hidden_2=4, dense_dim=2, dropout=0.0)
         X = np.random.randn(10, 5, 3).astype(np.float32)
         y = np.random.randn(10).astype(np.float32)
-        dataset = list(zip([torch.tensor(x) for x in X], [torch.tensor(v) for v in y], strict=False))
+        dataset = list(
+            zip([torch.tensor(x) for x in X], [torch.tensor(v) for v in y], strict=False)
+        )
         loader = DataLoader(dataset, batch_size=5)
         y_true, y_pred = evaluate(model, loader, device)
         assert len(y_true) == 10

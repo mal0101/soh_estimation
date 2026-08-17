@@ -28,7 +28,7 @@ def init_tracking(tracking_uri: str = "mlruns", experiment_name: str = "soh_benc
     logger.info("MLflow tracking initialized: uri=%s, experiment=%s", tracking_uri, experiment_name)
 
 
-def start_run(run_name: str | None = None, tags: dict[str, str] | None = None) -> mlflow.active_run:
+def start_run(run_name: str | None = None, tags: dict[str, str] | None = None) -> Any:
     """Start a new MLflow run.
 
     Args:
@@ -100,6 +100,7 @@ def log_figures(figures: dict[str, Any], artifact_dir: str = "figures") -> None:
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
             fig.savefig(tmp.name, dpi=150, bbox_inches="tight")
             log_artifact(tmp.name, artifact_dir=artifact_dir)
+            Path(tmp.name).unlink()
 
 
 def _flatten_dict(d: dict[str, Any], parent_key: str = "", sep: str = ".") -> dict[str, Any]:

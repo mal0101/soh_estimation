@@ -100,12 +100,14 @@ def compute_soh_curve(
         soh = cycle["capacity"] / q_initial
         soh = min(soh, cap)
 
-        soh_records.append({
-            "cycle_number": cycle["cycle_number"],
-            "soh": soh,
-            "q_discharge": cycle["capacity"],
-            "q_initial": q_initial,
-        })
+        soh_records.append(
+            {
+                "cycle_number": cycle["cycle_number"],
+                "soh": soh,
+                "q_discharge": cycle["capacity"],
+                "q_initial": q_initial,
+            }
+        )
 
     logger.info(
         "%s: computed SOH for %d discharge cycles (range: %.4f - %.4f)",

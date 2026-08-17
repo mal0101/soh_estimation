@@ -7,19 +7,19 @@ suitability for embedded BMS deployment.
 import logging
 import time
 from pathlib import Path
+from typing import Any
 
 import numpy as np
-import torch
 
 logger = logging.getLogger(__name__)
 
 
 def benchmark_inference_time(
-    model: object,
+    model: Any,
     X: np.ndarray,
     n_repeats: int = 1000,
     is_torch: bool = False,
-    device: torch.device | None = None,
+    device: Any | None = None,
 ) -> dict[str, float]:
     """Benchmark sequential CPU inference time.
 
@@ -68,8 +68,10 @@ def benchmark_inference_time(
     }
     logger.info(
         "Inference time: %.3f ± %.3f ms (p95=%.3f, p99=%.3f)",
-        result["mean_inference_ms"], result["std_inference_ms"],
-        result["p95_ms"], result["p99_ms"],
+        result["mean_inference_ms"],
+        result["std_inference_ms"],
+        result["p95_ms"],
+        result["p99_ms"],
     )
     return result
 
@@ -95,6 +97,7 @@ def deployability_report(
     target_rmse: float = 0.02,
     target_maxae: float = 0.05,
     target_inference_ms: float = 200,
+    target_size_mb: float = 4.0,
 ) -> dict[str, dict]:
     """Generate a deployability assessment report.
 
@@ -104,6 +107,7 @@ def deployability_report(
         target_rmse: Target RMSE threshold.
         target_maxae: Target MaxAE threshold.
         target_inference_ms: Target inference time threshold.
+        target_size_mb: Target model size threshold in MB.
 
     Returns:
         Dict mapping model names to assessment dicts.
@@ -118,6 +122,6 @@ def deployability_report(
             "inference_time_ms": mean_ms,
             "model_size_mb": size,
             "meets_inference_target": mean_ms <= target_inference_ms,
-            "meets_size_target": size <= 4.0,
+            "meets_size_target": size <= target_size_mb,
         }
     return report

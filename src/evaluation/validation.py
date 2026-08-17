@@ -54,20 +54,25 @@ def cell_based_loocv(
         X_test = test_df[feature_cols].values
         y_test = test_df["soh"].values
 
-        folds.append({
-            "fold": fold_idx,
-            "test_cell": test_cell,
-            "train_indices": train_df.index.values,
-            "test_indices": test_df.index.values,
-            "X_train": X_train,
-            "y_train": y_train,
-            "X_test": X_test,
-            "y_test": y_test,
-        })
+        folds.append(
+            {
+                "fold": fold_idx,
+                "test_cell": test_cell,
+                "train_indices": train_df.index.values,
+                "test_indices": test_df.index.values,
+                "X_train": X_train,
+                "y_train": y_train,
+                "X_test": X_test,
+                "y_test": y_test,
+            }
+        )
 
         logger.info(
             "Fold %d: test_cell=%s, train=%d, test=%d",
-            fold_idx, test_cell, len(X_train), len(X_test),
+            fold_idx,
+            test_cell,
+            len(X_train),
+            len(X_test),
         )
 
     logger.info("Created %d LOOCV folds", len(folds))
@@ -111,12 +116,14 @@ def save_fold_indices(
 
     fold_data = []
     for f in folds:
-        fold_data.append({
-            "fold": f["fold"],
-            "test_cell": f["test_cell"],
-            "train_indices": f["train_indices"].tolist(),
-            "test_indices": f["test_indices"].tolist(),
-        })
+        fold_data.append(
+            {
+                "fold": f["fold"],
+                "test_cell": f["test_cell"],
+                "train_indices": f["train_indices"].tolist(),
+                "test_indices": f["test_indices"].tolist(),
+            }
+        )
 
     filepath = out / "fold_indices.json"
     with open(filepath, "w") as fh:

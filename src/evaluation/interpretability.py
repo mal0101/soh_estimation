@@ -66,6 +66,9 @@ def captum_integrated_gradients(
     import torch
     from captum.attr import IntegratedGradients
 
+    if X.ndim != 3:
+        raise ValueError(f"Expected 3D input array [n_samples, seq_len, n_features], got {X.ndim}D")
+
     model.eval()
     model = model.to(device)
 

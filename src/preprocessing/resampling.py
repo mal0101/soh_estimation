@@ -50,9 +50,7 @@ def resample_to_uniform_grid(
         return cap_grid, np.full(n_points, np.mean(voltage))
 
     cap_grid = np.linspace(0, cap_max, n_points)
-    interpolator = interp1d(
-        capacity, voltage, kind=kind, fill_value="extrapolate"
-    )
+    interpolator = interp1d(capacity, voltage, kind=kind, fill_value="extrapolate")
     voltage_resampled = interpolator(cap_grid)
 
     return cap_grid, voltage_resampled
