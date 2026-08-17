@@ -87,7 +87,7 @@ def build_feature_matrix(
             cn = dc["cycle_number"]
             record: dict[str, Any] = {
                 "cell_id": cell_id,
-                "dataset": "nasa_pcoe",
+                "dataset": cell_data.get("dataset", "unknown"),
                 "cycle_number": cn,
                 "soh": float(soh_arr[i]) if not np.isnan(soh_arr[i]) else np.nan,
                 "rated_capacity": cell_data.get("rated_capacity", 2.0),
@@ -229,6 +229,7 @@ def save_feature_matrix(
     feature_df: pd.DataFrame,
     selected_cols: list[str],
     output_dir: str = "data/features",
+    dataset: str = "all",
 ) -> Path:
     """Save the feature matrix with selected features to parquet.
 
@@ -236,6 +237,7 @@ def save_feature_matrix(
         feature_df: Full feature matrix.
         selected_cols: Names of selected feature columns.
         output_dir: Output directory path.
+        dataset: Dataset name for filename suffix ('nasa', 'calce', or 'all').
 
     Returns:
         Path to the saved parquet file.
@@ -247,7 +249,8 @@ def save_feature_matrix(
     save_cols = metadata_cols + [c for c in selected_cols if c not in metadata_cols]
     save_df = feature_df[save_cols].copy()
 
-    filepath = out_path / "feature_matrix.parquet"
+    suffix = f"_{dataset}" if dataset != "all" else ""
+    filepath = out_path / f"feature_matrix{suffix}.parquet"
     save_df.to_parquet(filepath, index=False)
     logger.info("Saved feature matrix: %s (%s)", filepath, save_df.shape)
 

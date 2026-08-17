@@ -25,11 +25,12 @@ from src.utils.tracking import init_tracking, log_metrics, log_params, start_run
 logger = logging.getLogger(__name__)
 
 
-def run_classical_pipeline(config_path: str = "config/default.yaml") -> dict:
+def run_classical_pipeline(config_path: str = "config/default.yaml", dataset: str = "all") -> dict:
     """Run all classical ML models through LOOCV.
 
     Args:
         config_path: Path to the YAML configuration file.
+        dataset: Dataset to use: 'nasa', 'calce', or 'all'.
 
     Returns:
         Dictionary of aggregated results per model.
@@ -40,7 +41,9 @@ def run_classical_pipeline(config_path: str = "config/default.yaml") -> dict:
         experiment_name=config["tracking"]["experiment_name"],
     )
 
-    feature_df = pd.read_parquet(Path(config["data"]["features_dir"]) / "feature_matrix.parquet")
+    suffix = f"_{dataset}" if dataset != "all" else ""
+    feature_path = Path(config["data"]["features_dir"]) / f"feature_matrix{suffix}.parquet"
+    feature_df = pd.read_parquet(feature_path)
     metadata_cols = ["cell_id", "dataset", "cycle_number", "soh"]
     feature_cols = [c for c in feature_df.columns if c not in metadata_cols]
 
@@ -144,7 +147,7 @@ def run_classical_pipeline(config_path: str = "config/default.yaml") -> dict:
         logger.info("%s: RMSE=%.6f±%.6f R2=%.4f±%.4f",
                      model_name, agg["rmse_mean"], agg["rmse_std"], agg["r2_mean"], agg["r2_std"])
 
-    results_path = Path("experiments") / "classical_results.yaml"
+    results_path = Path("experiments") / f"classical_results{suffix}.yaml"
     with open(results_path, "w") as f:
         yaml.dump(summary, f, default_flow_style=False)
     logger.info("Results saved to %s", results_path)
@@ -156,11 +159,17 @@ def main() -> None:
     """CLI entry point for classical ML training."""
     parser = argparse.ArgumentParser(description="Classical ML training orchestrator")
     parser.add_argument("--config", default="config/default.yaml", help="Config YAML path")
+    parser.add_argument(
+        "--dataset",
+        choices=["nasa", "calce", "all"],
+        default="all",
+        help="Dataset to train on: nasa, calce, or all (default: all)",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
-    summary = run_classical_pipeline(args.config)
+    summary = run_classical_pipeline(args.config, dataset=args.dataset)
 
     print("\n" + "=" * 60)
     print("CLASSICAL ML RESULTS SUMMARY")

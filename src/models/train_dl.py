@@ -26,11 +26,12 @@ from src.utils.tracking import init_tracking, log_metrics, log_params, start_run
 logger = logging.getLogger(__name__)
 
 
-def run_dl_pipeline(config_path: str = "config/default.yaml") -> dict:
+def run_dl_pipeline(config_path: str = "config/default.yaml", dataset: str = "all") -> dict:
     """Run all DL models through LOOCV.
 
     Args:
         config_path: Path to the YAML configuration file.
+        dataset: Dataset to use: 'nasa', 'calce', or 'all'.
 
     Returns:
         Dictionary of aggregated results per model.
@@ -41,7 +42,9 @@ def run_dl_pipeline(config_path: str = "config/default.yaml") -> dict:
         experiment_name=config["tracking"]["experiment_name"],
     )
 
-    feature_df = pd.read_parquet(Path(config["data"]["features_dir"]) / "feature_matrix.parquet")
+    suffix = f"_{dataset}" if dataset != "all" else ""
+    feature_path = Path(config["data"]["features_dir"]) / f"feature_matrix{suffix}.parquet"
+    feature_df = pd.read_parquet(feature_path)
     metadata_cols = ["cell_id", "dataset", "cycle_number", "soh"]
     feature_cols = [c for c in feature_df.columns if c not in metadata_cols]
 
@@ -143,7 +146,7 @@ def run_dl_pipeline(config_path: str = "config/default.yaml") -> dict:
             agg["r2_mean"], agg.get("r2_std", 0),
         )
 
-    results_path = Path("experiments") / "dl_results.yaml"
+    results_path = Path("experiments") / f"dl_results{suffix}.yaml"
     results_path.parent.mkdir(parents=True, exist_ok=True)
     with open(results_path, "w") as f:
         yaml.dump(summary, f, default_flow_style=False)
@@ -181,11 +184,17 @@ def main() -> None:
     """CLI entry point for DL training."""
     parser = argparse.ArgumentParser(description="Deep learning training orchestrator")
     parser.add_argument("--config", default="config/default.yaml", help="Config YAML path")
+    parser.add_argument(
+        "--dataset",
+        choices=["nasa", "calce", "all"],
+        default="all",
+        help="Dataset to train on: nasa, calce, or all (default: all)",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
-    summary = run_dl_pipeline(args.config)
+    summary = run_dl_pipeline(args.config, dataset=args.dataset)
 
     print("\n" + "=" * 60)
     print("DEEP LEARNING RESULTS SUMMARY")
