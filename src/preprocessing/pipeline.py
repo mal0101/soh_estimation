@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from src.preprocessing.capacity import compute_cumulative_capacity
-from src.preprocessing.data_loader import load_all_nasa_cells
+from src.preprocessing.data_loader import load_all_calce_cells, load_all_nasa_cells
 from src.preprocessing.filtering import savgol_filter_voltage
 from src.preprocessing.resampling import resample_to_uniform_grid
 from src.preprocessing.segmentation import validate_cycles
@@ -115,11 +115,15 @@ def preprocess_cell(
     return result
 
 
-def run_pipeline(config_path: str = "config/default.yaml") -> None:
+def run_pipeline(config_path: str = "config/default.yaml", dataset: str = "all") -> None:
     """Run the full preprocessing pipeline from configuration.
 
     Loads all cells, preprocesses them, computes SOH labels, and saves
     the processed data and labels to disk.
+
+    Args:
+        config_path: Path to the YAML configuration file.
+        dataset: Which dataset to process: 'nasa', 'calce', or 'all'.
     """
     from src.utils.config import Config
 
@@ -130,20 +134,38 @@ def run_pipeline(config_path: str = "config/default.yaml") -> None:
     processed_dir = Path(config.get("data.processed_dir", "data/processed"))
     processed_dir.mkdir(parents=True, exist_ok=True)
 
-    nasa_pcoe_dir = Path(raw_dir) / "nasa_pcoe"
     window_length = config.get("preprocessing.savgol.window_length", 51)
     polyorder = config.get("preprocessing.savgol.polynomial_order", 3)
     n_points = config.get("preprocessing.resampling.n_points", 1000)
     min_frac = config.get("preprocessing.cycle_segmentation.min_discharge_fraction", 0.90)
-
-    logger.info("Loading NASA PCoE cells from %s", nasa_pcoe_dir)
-    all_cells = load_all_nasa_cells(nasa_pcoe_dir)
-
     q_initial_cycles = tuple(config.get("preprocessing.soh.q_initial_cycles", [3, 10]))
+
+    all_cells = {}
+
+    if dataset in ("nasa", "all"):
+        nasa_pcoe_dir = Path(raw_dir) / "nasa_pcoe"
+        logger.info("Loading NASA PCoE cells from %s", nasa_pcoe_dir)
+        nasa_cells = load_all_nasa_cells(nasa_pcoe_dir)
+        all_cells.update(nasa_cells)
+
+    if dataset in ("calce", "all"):
+        calce_dir = Path(raw_dir) / "calce"
+        logger.info("Loading CALCE cells from %s", calce_dir)
+        calce_cells = load_all_calce_cells(calce_dir)
+        all_cells.update(calce_cells)
+
+    if not all_cells:
+        logger.error("No cells loaded for dataset=%s", dataset)
+        return
 
     processed_cells = {}
     for cell_id, cell_data in all_cells.items():
-        q_initial = compute_q_initial(cell_data, q_initial_cycles)
+        try:
+            q_initial = compute_q_initial(cell_data, q_initial_cycles)
+        except ValueError as e:
+            logger.error("Skipping %s: %s", cell_id, e)
+            continue
+
         processed = preprocess_cell(
             cell_data,
             q_initial,
@@ -157,13 +179,14 @@ def run_pipeline(config_path: str = "config/default.yaml") -> None:
         n_discharge = sum(1 for c in processed["cycles"] if c["type"] == "discharge")
         logger.info("  %s: %d discharge cycles preprocessed", cell_id, n_discharge)
 
-    pkl_path = processed_dir / "processed_cells.pkl"
+    suffix = f"_{dataset}" if dataset != "all" else ""
+    pkl_path = processed_dir / f"processed_cells{suffix}.pkl"
     with open(pkl_path, "wb") as f:
         pickle.dump(processed_cells, f)
     logger.info("Saved processed cells to %s", pkl_path)
 
     soh_df = compute_soh_for_all_cells(processed_cells, q_initial_cycles)
-    soh_path = processed_dir / "soh_labels.parquet"
+    soh_path = processed_dir / f"soh_labels{suffix}.parquet"
     soh_df.to_parquet(soh_path, index=False)
     logger.info("Saved SOH labels to %s (%d rows)", soh_path, len(soh_df))
 
@@ -197,5 +220,12 @@ if __name__ == "__main__":
         default="config/default.yaml",
         help="Path to configuration YAML file",
     )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        choices=["nasa", "calce", "all"],
+        default="all",
+        help="Dataset to process: nasa, calce, or all (default: all)",
+    )
     args = parser.parse_args()
-    run_pipeline(args.config)
+    run_pipeline(args.config, dataset=args.dataset)

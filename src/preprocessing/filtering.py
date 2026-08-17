@@ -42,6 +42,8 @@ def savgol_filter_voltage(
     if effective_window % 2 == 0:
         effective_window -= 1
 
+    effective_window = min(effective_window, max_window)
+
     if effective_window < polyorder + 2:
         return voltage.copy()
 
