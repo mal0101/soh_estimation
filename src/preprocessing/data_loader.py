@@ -138,20 +138,169 @@ def _parse_nasa_cycle(raw_cycle: Any, cycle_number: int) -> dict[str, Any] | Non
     }
 
 
-def load_calce_cell(filepath: str | Path) -> dict[str, Any]:
-    """Load a single CALCE battery cell. Not yet implemented.
+CALCE_CELLS = ["CS2_33", "CS2_34", "CS2_35", "CS2_36"]
+CALCE_RATED_CAPACITY = 1.1
+CALCE_CUTOFF_VOLTAGE = 2.7
+
+
+def load_calce_cell(cell_dir: str | Path) -> dict[str, Any]:
+    """Load a single CALCE battery cell from a directory of Excel files.
+
+    Each CALCE cell directory contains multiple .xlsx files, one per testing
+    session. Each file has an 'Info' sheet and a 'Channel_X-XXX' sheet with
+    time-series data. Discharge capacity is cumulative within each file and
+    must be differenced to obtain per-cycle capacity.
 
     Args:
-        filepath: Path to the CALCE data file.
+        cell_dir: Path to the cell directory (e.g., 'data/raw/calce/CS2_33/').
+
+    Returns:
+        Dictionary with keys: cell_id, dataset, rated_capacity, cutoff_voltage,
+        cycles (list of cycle dicts). Each cycle dict contains: cycle_number,
+        type, ambient_temperature, voltage, current, temperature, time,
+        capacity, eis.
 
     Raises:
-        NotImplementedError: Always, until CALCE data is obtained.
+        FileNotFoundError: If the cell directory does not exist.
+        ValueError: If no valid discharge cycles are found.
     """
-    raise NotImplementedError(
-        "CALCE data loading is not yet implemented. "
-        "Download CS2 cells from https://calce.umd.edu/battery-data and "
-        "request access if required."
+    import pandas as pd
+
+    cell_dir = Path(cell_dir)
+    if not cell_dir.exists():
+        raise FileNotFoundError(f"CALCE cell directory not found: {cell_dir}")
+
+    cell_id = cell_dir.name
+    xlsx_files = sorted(cell_dir.glob("*.xlsx"))
+    if not xlsx_files:
+        raise ValueError(f"No .xlsx files found in {cell_dir}")
+
+    logger.info("Loading CALCE cell %s from %d Excel files", cell_id, len(xlsx_files))
+
+    all_cycles = []
+    global_cycle_counter = 0
+
+    for xlsx_path in xlsx_files:
+        xlsx = pd.ExcelFile(xlsx_path)
+        data_sheet_names = [s for s in xlsx.sheet_names if s.startswith("Channel")]
+        if not data_sheet_names:
+            logger.warning("No Channel sheet in %s, skipping", xlsx_path.name)
+            continue
+
+        df = pd.read_excel(xlsx, sheet_name=data_sheet_names[0])
+
+        if "Cycle_Index" not in df.columns or "Current(A)" not in df.columns:
+            logger.warning("Missing required columns in %s, skipping", xlsx_path.name)
+            continue
+
+        cycle_indices = sorted(df["Cycle_Index"].unique())
+
+        for file_cycle_idx in cycle_indices:
+            cycle_data = df[df["Cycle_Index"] == file_cycle_idx]
+
+            charge_mask = cycle_data["Current(A)"] > 0
+            discharge_mask = cycle_data["Current(A)"] < 0
+
+            if charge_mask.sum() > 0:
+                charge_rows = cycle_data[charge_mask]
+                charge_cycle = _parse_calce_cycle(
+                    charge_rows, global_cycle_counter, "charge"
+                )
+                if charge_cycle is not None:
+                    all_cycles.append(charge_cycle)
+
+            if discharge_mask.sum() > 0:
+                global_cycle_counter += 1
+                discharge_rows = cycle_data[discharge_mask]
+                discharge_cycle = _parse_calce_cycle(
+                    discharge_rows, global_cycle_counter, "discharge"
+                )
+                if discharge_cycle is not None:
+                    all_cycles.append(discharge_cycle)
+
+    n_charge = sum(1 for c in all_cycles if c["type"] == "charge")
+    n_discharge = sum(1 for c in all_cycles if c["type"] == "discharge")
+    logger.info(
+        "  Parsed: %d charge, %d discharge cycles",
+        n_charge,
+        n_discharge,
     )
+
+    if n_discharge == 0:
+        raise ValueError(f"{cell_id}: no valid discharge cycles found")
+
+    return {
+        "cell_id": cell_id,
+        "dataset": "calce",
+        "rated_capacity": CALCE_RATED_CAPACITY,
+        "cutoff_voltage": CALCE_CUTOFF_VOLTAGE,
+        "cycles": all_cycles,
+    }
+
+
+def _parse_calce_cycle(
+    cycle_df: Any, cycle_number: int, cycle_type: str
+) -> dict[str, Any] | None:
+    """Parse a single CALCE cycle from a DataFrame slice.
+
+    Args:
+        cycle_df: DataFrame rows for this cycle.
+        cycle_number: Sequential 1-based cycle index.
+        cycle_type: 'charge' or 'discharge'.
+
+    Returns:
+        Parsed cycle dictionary, or None if the cycle has invalid data.
+    """
+
+    voltage = cycle_df["Voltage(V)"].values.astype(np.float64)
+    current = cycle_df["Current(A)"].values.astype(np.float64)
+    time_arr = cycle_df["Test_Time(s)"].values.astype(np.float64)
+
+    if voltage.size == 0 or np.all(np.isnan(voltage)):
+        return None
+
+    if cycle_type == "discharge":
+        cum_cap = cycle_df["Discharge_Capacity(Ah)"].values.astype(np.float64)
+        per_cycle_cap = float(np.nanmax(cum_cap) - np.nanmin(cum_cap))
+        if per_cycle_cap <= 0 or np.isnan(per_cycle_cap):
+            return None
+        capacity = per_cycle_cap
+    else:
+        capacity = None
+
+    return {
+        "cycle_number": cycle_number,
+        "type": cycle_type,
+        "ambient_temperature": 25.0,
+        "voltage": voltage,
+        "current": current,
+        "temperature": np.full_like(voltage, 25.0),
+        "time": time_arr,
+        "capacity": capacity,
+        "eis": None,
+    }
+
+
+def load_all_calce_cells(data_dir: str | Path) -> dict[str, dict[str, Any]]:
+    """Load all standard CALCE CS2 battery cells.
+
+    Args:
+        data_dir: Directory containing CS2_33/, CS2_34/, CS2_35/, CS2_36/.
+
+    Returns:
+        Dictionary mapping cell_id to loaded cell data.
+    """
+    data_dir = Path(data_dir)
+    cells = {}
+    for cell_id in CALCE_CELLS:
+        cell_path = data_dir / cell_id
+        try:
+            cells[cell_id] = load_calce_cell(cell_path)
+        except FileNotFoundError:
+            logger.warning("Directory not found for %s at %s, skipping", cell_id, cell_path)
+        except ValueError as e:
+            logger.error("Failed to load %s: %s", cell_id, e)
+    return cells
 
 
 def load_all_nasa_cells(data_dir: str | Path) -> dict[str, dict[str, Any]]:

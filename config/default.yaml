@@ -13,7 +13,9 @@ data:
     format: mat
   calce:
     cells: [CS2_33, CS2_34, CS2_35, CS2_36]
-    format: csv
+    rated_capacity: 1.1
+    cutoff_voltage: 2.7
+    format: xlsx
 
 preprocessing:
   savgol:

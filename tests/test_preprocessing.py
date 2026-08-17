@@ -1,8 +1,16 @@
 """Tests for src/preprocessing/ — filtering, resampling, capacity, segmentation."""
 
 import numpy as np
+import pytest
 
 from src.preprocessing.capacity import compute_cumulative_capacity
+from src.preprocessing.data_loader import (
+    CALCE_CELLS,
+    CALCE_CUTOFF_VOLTAGE,
+    CALCE_RATED_CAPACITY,
+    load_all_calce_cells,
+    load_calce_cell,
+)
 from src.preprocessing.filtering import savgol_filter_voltage
 from src.preprocessing.resampling import resample_to_uniform_grid
 from src.preprocessing.segmentation import validate_cycles
@@ -101,3 +109,64 @@ class TestValidateCycles:
         }
         result = validate_cycles(cell_data, q_initial=2.0, early_cycle_window=5)
         assert len(result["cycles"]) == 3
+
+
+class TestCalceLoader:
+    """Tests for CALCE data loading."""
+
+    @pytest.fixture(scope="class")
+    def calce_cell(self):
+        """Load a single CALCE cell for testing (once per class)."""
+        return load_calce_cell("data/raw/calce/CS2_33")
+
+    def test_load_calce_cell_returns_dict(self, calce_cell):
+        assert isinstance(calce_cell, dict)
+        assert calce_cell["cell_id"] == "CS2_33"
+        assert calce_cell["dataset"] == "calce"
+
+    def test_calce_rated_capacity(self, calce_cell):
+        assert calce_cell["rated_capacity"] == CALCE_RATED_CAPACITY
+
+    def test_calce_cutoff_voltage(self, calce_cell):
+        assert calce_cell["cutoff_voltage"] == CALCE_CUTOFF_VOLTAGE
+
+    def test_calce_has_discharge_cycles(self, calce_cell):
+        discharge = [c for c in calce_cell["cycles"] if c["type"] == "discharge"]
+        assert len(discharge) > 0
+
+    def test_calce_discharge_capacity_positive(self, calce_cell):
+        discharge = [c for c in calce_cell["cycles"] if c["type"] == "discharge"]
+        capacities = [c["capacity"] for c in discharge if c["capacity"] is not None]
+        assert all(c > 0 for c in capacities)
+
+    def test_calce_voltage_array_not_empty(self, calce_cell):
+        discharge = [c for c in calce_cell["cycles"] if c["type"] == "discharge"]
+        for cycle in discharge:
+            assert cycle["voltage"].size > 0
+
+    def test_calce_time_array_not_empty(self, calce_cell):
+        discharge = [c for c in calce_cell["cycles"] if c["type"] == "discharge"]
+        for cycle in discharge:
+            assert cycle["time"].size > 0
+
+    def test_calce_no_eis(self, calce_cell):
+        discharge = [c for c in calce_cell["cycles"] if c["type"] == "discharge"]
+        for cycle in discharge:
+            assert cycle["eis"] is None
+
+    def test_calce_temperature_placeholder(self, calce_cell):
+        discharge = [c for c in calce_cell["cycles"] if c["type"] == "discharge"]
+        for cycle in discharge:
+            assert cycle["temperature"] is not None
+            assert np.all(cycle["temperature"] == 25.0)
+
+    def test_load_all_calce_cells(self):
+        cells = load_all_calce_cells("data/raw/calce")
+        assert len(cells) == 4
+        for cell_id in CALCE_CELLS:
+            assert cell_id in cells
+            assert cells[cell_id]["dataset"] == "calce"
+
+    def test_calce_not_found(self):
+        with pytest.raises(FileNotFoundError):
+            load_calce_cell("data/raw/calce/NONEXISTENT")
