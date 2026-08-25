@@ -1,0 +1,138 @@
+_meta:
+  dataset: nasa
+  inference_benchmark: single-sample predict() x200
+  n_folds: 4
+  protocol: cell-based LOOCV; per-fold feature selection; inner-cell-split hyperparameter
+    tuning; refit on full training fold
+gpr:
+  inference_time_ms_mean: 0.09879955789074302
+  inference_time_ms_p95: 0.1299931383982766
+  mae_mean: 0.026185205549968015
+  mae_std: 0.016362305820702146
+  maxae_mean: 0.055815810091879275
+  maxae_std: 0.023179194818775083
+  per_fold_r2:
+  - 0.9704236607638281
+  - 0.7423432462928121
+  - 0.9797484405368408
+  - 0.8506682953594897
+  per_fold_rmse:
+  - 0.01651216376172214
+  - 0.05396279039923688
+  - 0.011078956535442878
+  - 0.031590687011645996
+  r2_mean: 0.8857959107382427
+  r2_std: 0.09721310383461733
+  rmse_mean: 0.028286149427011978
+  rmse_std: 0.016620199200964126
+  selected_features_by_fold_count:
+    capacity_fade_rate: 4
+    coulombic_efficiency: 4
+    discharge_energy: 4
+    eis_re: 4
+    internal_resistance: 4
+    mean_discharge_voltage: 1
+    temp_max: 3
+    temp_mean: 4
+    temp_min: 4
+    temp_range: 4
+  train_time_mean_s: 1.5198185932531487
+naive:
+  inference_time_ms_mean: 0.000641072983853519
+  inference_time_ms_p95: 0.0006977905286476016
+  mae_mean: 0.09042100116572956
+  mae_std: 0.024000263390461178
+  maxae_mean: 0.209816061973996
+  maxae_std: 0.0363469510055719
+  per_fold_r2:
+  - -0.07852911249116534
+  - -0.9893299116140089
+  - -0.48060083437224543
+  - -0.1044209824308937
+  per_fold_rmse:
+  - 0.09971206579895261
+  - 0.14994329141529283
+  - 0.09473023566117315
+  - 0.08591131842466422
+  r2_mean: -0.41322021022707833
+  r2_std: 0.3687199582791529
+  rmse_mean: 0.1075742278250207
+  rmse_std: 0.02495596581798479
+  selected_features_by_fold_count:
+    capacity_fade_rate: 4
+    coulombic_efficiency: 4
+    discharge_energy: 4
+    eis_re: 4
+    internal_resistance: 4
+    mean_discharge_voltage: 1
+    temp_max: 3
+    temp_mean: 4
+    temp_min: 4
+    temp_range: 4
+  train_time_mean_s: 3.518775338307023e-05
+rf:
+  inference_time_ms_mean: 19.795250401148223
+  inference_time_ms_p95: 26.262526788923424
+  mae_mean: 0.02390875649830173
+  mae_std: 0.016632945153223493
+  maxae_mean: 0.08249482064024774
+  maxae_std: 0.033202974905120364
+  per_fold_r2:
+  - 0.9623131251349321
+  - 0.6605212703312435
+  - 0.9411466317579843
+  - 0.9519271574705278
+  per_fold_rmse:
+  - 0.018639181637493805
+  - 0.061941243197783435
+  - 0.01888666531259264
+  - 0.017923918507329314
+  r2_mean: 0.8789770461736719
+  r2_std: 0.1263473428346472
+  rmse_mean: 0.0293477521637998
+  rmse_std: 0.018821181246261143
+  selected_features_by_fold_count:
+    capacity_fade_rate: 4
+    coulombic_efficiency: 4
+    discharge_energy: 4
+    eis_re: 4
+    internal_resistance: 4
+    mean_discharge_voltage: 1
+    temp_max: 3
+    temp_mean: 4
+    temp_min: 4
+    temp_range: 4
+  train_time_mean_s: 22.41986448978423
+svr:
+  inference_time_ms_mean: 0.04139645112445578
+  inference_time_ms_p95: 0.0504506599099841
+  mae_mean: 0.022114281268576414
+  mae_std: 0.020096401558869888
+  maxae_mean: 0.05143741407676297
+  maxae_std: 0.02132643515963565
+  per_fold_r2:
+  - 0.9819716582981433
+  - 0.7091793920046783
+  - 0.9876484164120793
+  - 0.9253371431644559
+  per_fold_rmse:
+  - 0.012891684492303187
+  - 0.05733056508889668
+  - 0.008652287536981699
+  - 0.02233754092007036
+  r2_mean: 0.9010341524698393
+  r2_std: 0.11341494063593396
+  rmse_mean: 0.02530301950956298
+  rmse_std: 0.01914318319424983
+  selected_features_by_fold_count:
+    capacity_fade_rate: 4
+    coulombic_efficiency: 4
+    discharge_energy: 4
+    eis_re: 4
+    internal_resistance: 4
+    mean_discharge_voltage: 1
+    temp_max: 3
+    temp_mean: 4
+    temp_min: 4
+    temp_range: 4
+  train_time_mean_s: 0.23451658297562972

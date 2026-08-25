@@ -1,0 +1,24 @@
+targets:
+  target_inference_ms: 200.0
+  target_size_mb: 4.0
+models:
+  naive:
+    model_size_mb_mean: .nan
+    inference_time_ms_mean: 0.0006674462929368019
+    meets_size_target: null
+    meets_inference_target: true
+  rf:
+    model_size_mb_mean: 52.937946796417236
+    inference_time_ms_mean: 25.729994539215113
+    meets_size_target: false
+    meets_inference_target: true
+  svr:
+    model_size_mb_mean: 0.11344695091247559
+    inference_time_ms_mean: 0.0826350630086381
+    meets_size_target: true
+    meets_inference_target: true
+  gpr:
+    model_size_mb_mean: 44.93501043319702
+    inference_time_ms_mean: 2.25480831846653
+    meets_size_target: false
+    meets_inference_target: true

@@ -1,0 +1,11 @@
+model: rf_fold0
+n_background: 500
+importance:
+  discharge_energy: 0.05668659357778444
+  ica_peak_voltage: 0.011992755380778295
+  coulombic_efficiency: 0.006715712613676228
+  mean_discharge_voltage: 0.005557919125722814
+  capacity_fade_rate: 0.0020677912977912914
+  ica_peak_height: 0.000773478899787894
+  ica_peak_area: 0.00035914781019828046
+  ica_secondary_ratio: 0.00012468933022370449

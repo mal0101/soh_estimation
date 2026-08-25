@@ -1,0 +1,130 @@
+_meta:
+  dataset: calce
+  inference_benchmark: single-sample predict() x200
+  n_folds: 4
+  protocol: cell-based LOOCV; per-fold feature selection; inner-cell-split hyperparameter
+    tuning; refit on full training fold
+gpr:
+  inference_time_ms_mean: 1.0671585275849793
+  inference_time_ms_p95: 2.908296344685367
+  mae_mean: 0.015076664757858006
+  mae_std: 0.0084464275948785
+  maxae_mean: 0.06706549761060321
+  maxae_std: 0.010008877747511455
+  per_fold_r2:
+  - 0.8455512195789773
+  - 0.8773589743410249
+  - 0.9784182316829603
+  - 0.9909284746726895
+  per_fold_rmse:
+  - 0.02853486388959093
+  - 0.02898768607318566
+  - 0.008649293404732668
+  - 0.008453171306692448
+  r2_mean: 0.923064225068913
+  r2_std: 0.062783075718488
+  rmse_mean: 0.018656253668550424
+  rmse_std: 0.010106527331819742
+  selected_features_by_fold_count:
+    capacity_fade_rate: 4
+    coulombic_efficiency: 4
+    discharge_energy: 4
+    ica_peak_area: 4
+    ica_peak_height: 4
+    ica_peak_voltage: 4
+    ica_secondary_ratio: 4
+    mean_discharge_voltage: 4
+  train_time_mean_s: 36.30707155224809
+naive:
+  inference_time_ms_mean: 0.0010224136349279433
+  inference_time_ms_p95: 0.0009800729458220299
+  mae_mean: 0.06401143602774409
+  mae_std: 0.010077675264295247
+  maxae_mean: 0.19228669178369148
+  maxae_std: 0.02274419787741584
+  per_fold_r2:
+  - -0.01273939254265355
+  - -0.01761343880838462
+  - -0.013507810289368871
+  - -0.0015403186256479628
+  per_fold_rmse:
+  - 0.07306887405501254
+  - 0.08350011609653822
+  - 0.05927214804977408
+  - 0.08882060562445049
+  r2_mean: -0.01135024006651375
+  r2_std: 0.005959175090242096
+  rmse_mean: 0.07616543595644383
+  rmse_std: 0.01127965784045067
+  selected_features_by_fold_count:
+    capacity_fade_rate: 4
+    coulombic_efficiency: 4
+    discharge_energy: 4
+    ica_peak_area: 4
+    ica_peak_height: 4
+    ica_peak_voltage: 4
+    ica_secondary_ratio: 4
+    mean_discharge_voltage: 4
+  train_time_mean_s: 0.00010442700295243412
+rf:
+  inference_time_ms_mean: 18.389051152407774
+  inference_time_ms_p95: 20.022737363615306
+  mae_mean: 0.016182061080911733
+  mae_std: 0.008376827099992969
+  maxae_mean: 0.059370759186642946
+  maxae_std: 0.015156450414997054
+  per_fold_r2:
+  - 0.8514849320378367
+  - 0.8453505074441616
+  - 0.9787722890845567
+  - 0.9782708631532062
+  per_fold_rmse:
+  - 0.027981360244094113
+  - 0.03255141800924201
+  - 0.00857805248172285
+  - 0.013082801407832835
+  r2_mean: 0.9134696479299402
+  r2_std: 0.0650883145059977
+  rmse_mean: 0.02054840803572295
+  rmse_std: 0.009979300092790896
+  selected_features_by_fold_count:
+    capacity_fade_rate: 4
+    coulombic_efficiency: 4
+    discharge_energy: 4
+    ica_peak_area: 4
+    ica_peak_height: 4
+    ica_peak_voltage: 4
+    ica_secondary_ratio: 4
+    mean_discharge_voltage: 4
+  train_time_mean_s: 21.941722406249028
+svr:
+  inference_time_ms_mean: 0.07898417985416017
+  inference_time_ms_p95: 0.09068603176274334
+  mae_mean: 0.015842474848189205
+  mae_std: 0.00852653385314419
+  maxae_mean: 0.10392492247664015
+  maxae_std: 0.023168366712766633
+  per_fold_r2:
+  - 0.7488444521069666
+  - 0.9141105104050826
+  - 0.9694751443221926
+  - 0.9795726965613762
+  per_fold_rmse:
+  - 0.036387729001205155
+  - 0.02425859664540845
+  - 0.01028641226595436
+  - 0.012684841108711901
+  r2_mean: 0.9030007008489045
+  r2_std: 0.09242523878388813
+  rmse_mean: 0.020904394755319966
+  rmse_std: 0.010383724331655006
+  selected_features_by_fold_count:
+    capacity_fade_rate: 4
+    coulombic_efficiency: 4
+    discharge_energy: 4
+    ica_peak_area: 4
+    ica_peak_height: 4
+    ica_peak_voltage: 4
+    ica_secondary_ratio: 4
+    mean_discharge_voltage: 4
+  train_time_mean_s: 1.7264505732309772

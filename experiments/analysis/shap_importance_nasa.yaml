@@ -1,0 +1,12 @@
+model: rf_fold0
+n_background: 422
+importance:
+  discharge_energy: 0.04247382587537444
+  internal_resistance: 0.030403938301954384
+  eis_re: 0.013139499338383537
+  temp_mean: 0.004487795369061879
+  temp_range: 0.004471024500546079
+  temp_max: 0.003801335732032266
+  capacity_fade_rate: 0.0006687251891787312
+  coulombic_efficiency: 0.000535357931593779
+  temp_min: 0.00047315096584117796
