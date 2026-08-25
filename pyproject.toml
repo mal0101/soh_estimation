@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "ML/DL benchmark study for State of Health estimation of lithium-ion EV batteries"
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.10, <3.12"
+requires-python = ">=3.11, <3.12"
 authors = [
     {name = "Malak M."}
 ]
@@ -41,6 +41,7 @@ dev = [
 
 [project.scripts]
 soh-preprocess = "src.preprocessing.pipeline:main"
+soh-build-features = "src.features.build_features:main"
 soh-train-classical = "src.models.train_classical:main"
 soh-train-dl = "src.models.train_dl:main"
 
@@ -65,6 +66,11 @@ python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["yaml", "shap"]
+ignore_missing_imports = true
+follow_imports = "skip"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,9 +1,11 @@
-from setuptools import setup, find_packages
+"""Compatibility shim.
 
-setup(
-    name="soh-estimation",
-    version="0.1.0",
-    packages=find_packages(where="."),
-    package_dir={"": "."},
-    python_requires=">=3.10, <3.12",
-)
+All project metadata (dependencies, entry points, packaging) lives in
+pyproject.toml. This file exists only so legacy tooling that insists on
+setup.py keeps working; ``pip install -e .`` reads pyproject.toml.
+"""
+
+from setuptools import setup
+
+if __name__ == "__main__":
+    setup()
