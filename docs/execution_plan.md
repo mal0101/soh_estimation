@@ -512,10 +512,23 @@ soh_estimation/
 
 | Risk | Mitigation |
 |---|---|
-| CALCE data access delay | Using NASA PCoE only; CALCE reserved for future work |
+| CALCE data access delay | Resolved: full CALCE CS2 integration completed (loader, preprocessing, results) |
 | GPR O(n^3) memory blowup | Subsample to 5000 hard cap |
 | Transformer overfits on small data | Reported honestly; negative R² documented |
 | DL training too slow on CPU | Used MPS backend (Apple Silicon); reduced trials/seeds for feasibility |
 | Scope creep | Strict phase gates; signed scope doc |
 | Writing panic at end | Write incrementally per phase |
 | MLflow file store deprecation | Migrated to SQLite backend (`sqlite:///mlflow.db`) |
+
+
+---
+
+## Post-Plan Remediation (2026-08-25)
+
+A full audit identified target leakage (capacity_fade_rate), selection-on-test
+(feature selection + Optuna on the LOOCV test cell), corrupted CALCE labels
+(storage gaps, RPT dips, poisoned Q_initial), degenerate ICA features, and
+mislabelled inference times. All were fixed; every experiment was re-run under
+a leakage-safe protocol. See docs/decisions_log.md D-009..D-016 and
+CHANGELOG.md. Numbers quoted earlier in this plan are superseded by
+experiments/*.yaml.

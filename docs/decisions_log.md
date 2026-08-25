@@ -137,3 +137,112 @@ Records all architectural and design decisions made during the project, with rat
 **Alternatives rejected:**
 - 5 seeds: Computationally expensive with small dataset; 3 provides sufficient variance estimates.
 - 1 seed: Insufficient for reporting statistics.
+
+---
+
+## D-009: Remediation of Target Leakage in capacity_fade_rate
+
+**Date:** 2026-08-25
+**Status:** Accepted
+**Context:** Audit found the fade-rate feature for row *n* used SOH(n) itself
+— an affine function of the prediction target — inflating every model.
+**Decision:** Fade rate now uses strictly past labels:
+(SOH(n−1) − SOH(n−1−window)) / window; warm-up rows are NaN, never 0.
+**Consequence:** First two rows per cell carry no fade feature (dropped per fold).
+
+---
+
+## D-010: Feature Selection Inside the CV Loop
+
+**Date:** 2026-08-25
+**Status:** Accepted
+**Context:** Correlation filtering + RF importance were fitted on ALL cells
+(including future test cells) before LOOCV — selection-on-test inflation.
+**Decision:** `fit_feature_selection(train_df)` runs per fold on training
+cells only; the saved feature matrices are FULL candidate matrices.
+**Alternatives rejected:** keeping global selection with a documented caveat
+(rejected: results would remain inflated).
+
+---
+
+## D-011: Inner Cell Split for Hyperparameter Tuning
+
+**Date:** 2026-08-25
+**Status:** Accepted
+**Context:** Optuna objectives and DL early stopping consumed the outer
+LOOCV test cell; reported metrics came from that same cell.
+**Decision:** Each fold splits its training cells by cell (alphabetically
+last = inner validation). Classical tuning and DL selection/early-stopping
+use only the inner split; final models refit on the full training fold;
+the test cell is touched once, for reporting. DL refits run for exactly
+`best_epoch` epochs chosen during selection, with best-weight restoration.
+**Consequence:** Headline metrics are lower but honest (SVR NASA R² 0.97 → ~0.90).
+
+---
+
+## D-012: Robust Q_initial (Median) and Cycle Integrity Filters
+
+**Date:** 2026-08-25
+**Status:** Accepted
+**Context:** CS2_36's Q_initial was poisoned by a 0.147 Ah interruption inside
+cycles [3,10] (+12% label bias); CALCE cells contained storage/test pauses
+(~250-cycle depressed blocks) and periodic RPT dips; the old filter only
+checked cycles ≤ 20.
+**Decision:** Q_initial = median over cycles [3,10]. Three integrity rules:
+early partials (≤20, <90% Q_init); isolated interruptions (>7% below ±5-neighbour
+local median); anomalous recovered runs (block <75% Q_init, later recovery,
+mean <70% Q_init). Genuine unrecovered EOL fade and shallow reversible
+transients (NASA B0006) are retained by design.
+**Consequence:** CALCE labels 3,546 → 2,559 rows; zero sub-0.6 SOH artifacts
+remain outside genuine B0006 deep discharge.
+
+---
+
+## D-013: ICA Sign Convention and Physical Gating
+
+**Date:** 2026-08-25
+**Status:** Accepted
+**Context:** dQ/dV computed as gradient(capacity, voltage) is negative on
+discharge curves; peak detection latched onto start-of-discharge artifacts and
+FWHM was always NaN.
+**Decision:** Negate the gradient; drop near-duplicate voltages before
+differentiation; clip dQ/dV ≥ 0; reject peaks outside [3.0, 4.35] V;
+prominence threshold relative to signal maximum.
+
+---
+
+## D-014: Explicit Dataset Suffixes on All Artifacts
+
+**Date:** 2026-08-25
+**Status:** Accepted
+**Context:** `--dataset all` previously wrote unsuffixed files while some
+results existed only as unproducible `_all` orphans; two contradictory
+"combined" result sets coexisted.
+**Decision:** Every artifact carries `_nasa` / `_calce` / `_all`; stale
+unsuffixed files removed; MLflow runs tagged with `dataset`.
+
+---
+
+## D-015: Real Inference Latency Benchmarks
+
+**Date:** 2026-08-25
+**Status:** Accepted
+**Context:** `inference_time_mean_s` stored full fold TRAINING wall time
+(including Optuna search); report latency claims were therefore unsupported.
+**Decision:** Fold wall time renamed `train_time_mean_s`; inference measured
+via `benchmark_inference_time` (single-sample predict ×N) into
+`inference_time_ms_mean/p95`; models persisted under
+`experiments/models/{dataset}/` so sizes are measurable.
+
+---
+
+## D-016: Honest Reporting Over Legacy Numbers
+
+**Date:** 2026-08-25
+**Status:** Accepted
+**Context:** Pre-remediation numbers were internally inconsistent (notebook 04
+matched no YAML), partially fabricated-looking via staleness, and methodologically
+inflated.
+**Decision:** Full re-run of every experiment after fixes; all downstream
+numbers regenerated programmatically from YAMLs (`scripts/update_results_docs.py`);
+stale claims corrected everywhere (README/GUIDE/notebooks/docs).

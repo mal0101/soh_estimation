@@ -4,6 +4,71 @@ All notable changes to this project will be documented in this file.
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.0] - 2026-08-25 — Methodology Remediation
+
+Full audit found methodological defects that inflated all previously reported
+metrics, plus stale/mixed-provenance artifacts. Every defect was fixed and the
+entire benchmark re-run under a leakage-safe protocol. All numbers in the
+README/notebooks/report are regenerated from `experiments/*.yaml`.
+
+### Fixed (methodology)
+- `capacity_fade_rate` no longer contains the current row's SOH target
+  (strictly past labels; NaN warm-up instead of synthetic zeros)
+- Feature selection (correlation filter + RF importance) fitted per LOOCV
+  fold on training cells only (`fit_feature_selection`); saved matrices are
+  FULL candidate sets
+- Optuna tuning and DL early stopping use an inner cell split of the training
+  cells; the outer test cell is touched once for final reporting
+- DL early stopping restores best weights; final models refit for exactly the
+  selected epoch count
+- DL double-windowing removed: sequence datasets built directly from
+  cell-grouped frames so windows never cross cell boundaries
+- `inference_time_mean_s` stored fold TRAINING time: renamed
+  `train_time_mean_s`; real single-sample latency benchmarked into
+  `inference_time_ms_mean/p95`
+
+### Fixed (data integrity)
+- CALCE SOH labels were produced by an EDA notebook on RAW unfiltered cells:
+  labels are now pipeline-only output
+- CS2_36 Q_initial poisoning (+12% label bias) fixed via median reduction over
+  cycles [3,10] (`preprocessing.soh.q_reduction: median`)
+- Cycle-integrity filters remove storage/test-pause runs (~250-cycle depressed
+  blocks that later recover) and isolated RPT dips anywhere in life; genuine
+  EOL fade and NASA B0006 reversible transients retained (CALCE labels
+  3,546 → 2,559 rows; zero sub-0.6 SOH artifacts remain)
+- dQ/dV sign inversion fixed (discharge ICA peaks were artifacts); near-zero
+  voltage gaps deduplicated; peaks gated to [3.0, 4.35] V
+- Coulombic efficiency pairing fixed (off-by-one on CALCE, 84% NaN on NASA);
+  impossible ratios rejected
+- Internal-resistance estimator requires a genuine current step (relative ΔI guard)
+- Phase analysis includes SOH-capped samples (top phase closed interval)
+
+### Added
+- `src/features/build_features.py` CLI (`soh-build-features`)
+- `scripts/update_results_docs.py`: regenerates README tables +
+  report/numbers_manifest.json from YAMLs
+- `scripts/run_robustness.py`: sensor-noise and missing-cycle robustness
+- `scripts/run_analysis_extras.py`: SHAP importances, GPR calibration,
+  deployability vs targets
+- Persisted per-fold models (`experiments/models/{dataset}/`) as joblib/torch
+- Per-dataset MLflow run tags; `tests/test_leakage.py` (regression pins for
+  every anti-leakage guarantee; suite now 134 tests)
+- Fold-level diagnostics in results YAMLs (per-fold metrics, selected
+  features, val RMSE, seed variability for DL)
+
+### Changed
+- All artifacts use explicit suffixes `_nasa` / `_calce` / `_all`; stale
+  unsuffixed/orphan results deleted
+- Config: dead keys removed (`dl.optimizer/loss/max_epochs_cpu`, `ffn_dim`,
+  `bms_flash_*`, unread tracking flags), search spaces now actually consumed
+  by trainers, `seeding.base_seed` wired through
+- Packaging: portable requirements.txt, environment.yml synced with
+  pyproject.toml, setup.py reduced to a shim, python pinned >=3.11,<3.12
+
+### Removed
+- Pre-remediation result YAMLs, stale unsuffixed `fold_indices.json`,
+  notebook-based label writing
+
 ## [Unreleased]
 
 ### Added
@@ -31,19 +96,6 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `rank_models` uses stable sort (`kind="mergesort"`) for reproducible tie-breaking
 - `logging.basicConfig` moved from `run_pipeline()` to CLI entry points only
 - `train_classical.py` creates `experiments/` directory before writing results
-
-### Fixed
-- Fixed savgol_filter_voltage edge case for short signal arrays
-- `log_figures` now cleans up temporary files after logging
-- GUIDE.md: corrected CALCE EDA notebook status ("not yet implemented" → implemented)
-- GUIDE.md: corrected SOH labels column count (3 → 6)
-- GUIDE.md: updated directory tree with per-dataset data products and report files
-- GUIDE.md: fixed stale line-number references in Section 6
-- GUIDE.md: updated test count (102 → 113)
-- GUIDE.md: corrected `save_feature_matrix` example to include `dataset` parameter
-- data_dictionary.md: added per-dataset data products (NASA/CALCE parquets and pkls)
-- data_dictionary.md: added `discharge_capacity` column documentation
-- CHANGELOG.md: captured all post-0.4.0 commits
 
 ## [0.4.0] - 2025-07-27
 
@@ -149,3 +201,6 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 - Fixed `.gitignore` to exclude data and experiment artifacts while tracking docs
+
+Note: entries below [Unreleased] describe the pre-remediation codebase; the
+0.2.0 "Results" block reflects the stale numbers superseded by 0.5.0.

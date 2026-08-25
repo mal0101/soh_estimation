@@ -38,48 +38,35 @@ python -m src.models.train_classical --config config/default.yaml --model rf
 python -m src.models.train_classical --config config/default.yaml --model svr
 python -m src.models.train_classical --config config/default.yaml --model gpr
 
-# Retrain DL models
-python -m src.models.train_dl --config config/default.yaml --model lstm
-python -m src.models.train_dl --config config/default.yaml --model cnn
-python -m src.models.train_dl --config config/default.yaml --model transformer
+# Retrain DL models (models trained together; ~hours)
+python -m src.models.train_dl --config config/default.yaml --dataset nasa   # or calce / all
+
+# Analysis extras + robustness
+python scripts/run_robustness.py --dataset nasa
+python scripts/run_analysis_extras.py --dataset nasa
 ```
 
 ### Evaluation Reproduction
 
-```bash
-python -m src.evaluation.comparison --config config/default.yaml
-```
+Model comparison tables are produced by the training orchestrators and
+regenerated into docs via `scripts/update_results_docs.py`.
 
 ## Experiment Tracking
 
 ### MLflow Organization
 
 ```
-Experiment: soh_benchmark
-├── Run: rf_nasa_fold_0
-│   ├── Params: {n_estimators: 300, max_depth: 20, ...}
-│   ├── Metrics: {rmse: 0.025, mae: 0.020, maxae: 0.084, r2: 0.927}
-│   └── Artifacts: model.pkl
-├── Run: svr_nasa_fold_0
-│   ├── Params: {C: 10.0, epsilon: 0.01, gamma: 0.01, ...}
-│   ├── Metrics: {rmse: 0.015, mae: 0.011, maxae: 0.054, r2: 0.973}
-│   └── Artifacts: model.pkl
-├── Run: gpr_nasa_fold_0
-│   ├── Params: {kernel: Matern(1.5), ...}
-│   ├── Metrics: {rmse: 0.030, mae: 0.027, maxae: 0.098, r2: 0.885}
-│   └── Artifacts: model.pkl
-├── Run: lstm_nasa_fold_0_seed_42
-│   ├── Params: {lstm_1_units: 64, lr: 0.001, ...}
-│   ├── Metrics: {rmse: 0.048, mae: 0.043, maxae: 0.098, r2: -0.135}
-│   └── Artifacts: model.pt
-├── Run: cnn_nasa_fold_0_seed_42
-│   ├── Params: {conv1_channels: 32, lr: 0.001, ...}
-│   ├── Metrics: {rmse: 0.104, mae: 0.085, maxae: 0.227, r2: -2.504}
-│   └── Artifacts: model.pt
-└── Run: transformer_nasa_fold_0_seed_42
-    ├── Params: {d_model: 64, nhead: 4, lr: 0.001, ...}
-    ├── Metrics: {rmse: 0.067, mae: 0.059, maxae: 0.139, r2: -0.142}
-    └── Artifacts: model.pt
+Experiment: soh_benchmark  (tracking URI sqlite:///mlflow.db, anchored to project root)
+├── Run: fold_0_naive            tags: {dataset, fold=0, model=naive}
+├── Run: fold_0_rf               params: Optuna best; metrics incl. per-fold rmse/r2
+├── Run: fold_0_svr / fold_0_gpr
+├── Run: fold_0_lstm_seed42      tags: {dataset, fold, model=lstm, seed=42}
+├── ... (3 models x n_folds x n_seeds per dataset)
+└── Legacy pre-remediation runs have NO dataset tag (kept for history;
+    notebooks filter them out via `tags.dataset`).
+
+Authoritative metric values live in experiments/*_results_{dataset}.yaml —
+this file is not updated with numbers to avoid a second source of truth.
 ```
 
 ### Log Standards
@@ -117,3 +104,13 @@ Not implemented in this internship scope. Potential additions:
 - GitHub Actions for linting (ruff) and testing (pytest)
 - Automated model evaluation on push
 - DVC for data versioning
+
+
+## Post-Remediation Notes (2026-08-25)
+
+- Run naming: `fold_{i}_{model}` (classical), `fold_{i}_{model}_seed{s}` (DL).
+- Every run carries `dataset`, `fold`, `model`(, `seed`) tags.
+- Persisted models live in `experiments/models/{dataset}/` (joblib for
+  classical, torch state dicts for DL); sizes feed deployability reports.
+- Inference latency in results YAMLs is REAL single-sample predict() latency
+  (`inference_time_ms_mean/p95`); `train_time_mean_s` is the fold wall time.
