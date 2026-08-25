@@ -1,0 +1,959 @@
+{
+  "generated_by": "scripts/update_results_docs.py",
+  "protocol_note": "Cell-based LOOCV; per-fold feature selection fitted on training cells only; hyperparameters selected via inner cell split; final refit on full training fold; inference latency measured as single-sample predict() latency.",
+  "nasa": {
+    "naive": {
+      "inference_time_ms_mean": 0.000641072983853519,
+      "inference_time_ms_p95": 0.0006977905286476016,
+      "mae_mean": 0.09042100116572956,
+      "mae_std": 0.024000263390461178,
+      "maxae_mean": 0.209816061973996,
+      "maxae_std": 0.0363469510055719,
+      "per_fold_r2": [
+        -0.07852911249116534,
+        -0.9893299116140089,
+        -0.48060083437224543,
+        -0.1044209824308937
+      ],
+      "per_fold_rmse": [
+        0.09971206579895261,
+        0.14994329141529283,
+        0.09473023566117315,
+        0.08591131842466422
+      ],
+      "r2_mean": -0.41322021022707833,
+      "r2_std": 0.3687199582791529,
+      "rmse_mean": 0.1075742278250207,
+      "rmse_std": 0.02495596581798479,
+      "selected_features_by_fold_count": {
+        "capacity_fade_rate": 4,
+        "coulombic_efficiency": 4,
+        "discharge_energy": 4,
+        "eis_re": 4,
+        "internal_resistance": 4,
+        "mean_discharge_voltage": 1,
+        "temp_max": 3,
+        "temp_mean": 4,
+        "temp_min": 4,
+        "temp_range": 4
+      },
+      "train_time_mean_s": 3.518775338307023e-05,
+      "_kind": "classical"
+    },
+    "rf": {
+      "inference_time_ms_mean": 19.795250401148223,
+      "inference_time_ms_p95": 26.262526788923424,
+      "mae_mean": 0.02390875649830173,
+      "mae_std": 0.016632945153223493,
+      "maxae_mean": 0.08249482064024774,
+      "maxae_std": 0.033202974905120364,
+      "per_fold_r2": [
+        0.9623131251349321,
+        0.6605212703312435,
+        0.9411466317579843,
+        0.9519271574705278
+      ],
+      "per_fold_rmse": [
+        0.018639181637493805,
+        0.061941243197783435,
+        0.01888666531259264,
+        0.017923918507329314
+      ],
+      "r2_mean": 0.8789770461736719,
+      "r2_std": 0.1263473428346472,
+      "rmse_mean": 0.0293477521637998,
+      "rmse_std": 0.018821181246261143,
+      "selected_features_by_fold_count": {
+        "capacity_fade_rate": 4,
+        "coulombic_efficiency": 4,
+        "discharge_energy": 4,
+        "eis_re": 4,
+        "internal_resistance": 4,
+        "mean_discharge_voltage": 1,
+        "temp_max": 3,
+        "temp_mean": 4,
+        "temp_min": 4,
+        "temp_range": 4
+      },
+      "train_time_mean_s": 22.41986448978423,
+      "_kind": "classical"
+    },
+    "svr": {
+      "inference_time_ms_mean": 0.04139645112445578,
+      "inference_time_ms_p95": 0.0504506599099841,
+      "mae_mean": 0.022114281268576414,
+      "mae_std": 0.020096401558869888,
+      "maxae_mean": 0.05143741407676297,
+      "maxae_std": 0.02132643515963565,
+      "per_fold_r2": [
+        0.9819716582981433,
+        0.7091793920046783,
+        0.9876484164120793,
+        0.9253371431644559
+      ],
+      "per_fold_rmse": [
+        0.012891684492303187,
+        0.05733056508889668,
+        0.008652287536981699,
+        0.02233754092007036
+      ],
+      "r2_mean": 0.9010341524698393,
+      "r2_std": 0.11341494063593396,
+      "rmse_mean": 0.02530301950956298,
+      "rmse_std": 0.01914318319424983,
+      "selected_features_by_fold_count": {
+        "capacity_fade_rate": 4,
+        "coulombic_efficiency": 4,
+        "discharge_energy": 4,
+        "eis_re": 4,
+        "internal_resistance": 4,
+        "mean_discharge_voltage": 1,
+        "temp_max": 3,
+        "temp_mean": 4,
+        "temp_min": 4,
+        "temp_range": 4
+      },
+      "train_time_mean_s": 0.23451658297562972,
+      "_kind": "classical"
+    },
+    "gpr": {
+      "inference_time_ms_mean": 0.09879955789074302,
+      "inference_time_ms_p95": 0.1299931383982766,
+      "mae_mean": 0.026185205549968015,
+      "mae_std": 0.016362305820702146,
+      "maxae_mean": 0.055815810091879275,
+      "maxae_std": 0.023179194818775083,
+      "per_fold_r2": [
+        0.9704236607638281,
+        0.7423432462928121,
+        0.9797484405368408,
+        0.8506682953594897
+      ],
+      "per_fold_rmse": [
+        0.01651216376172214,
+        0.05396279039923688,
+        0.011078956535442878,
+        0.031590687011645996
+      ],
+      "r2_mean": 0.8857959107382427,
+      "r2_std": 0.09721310383461733,
+      "rmse_mean": 0.028286149427011978,
+      "rmse_std": 0.016620199200964126,
+      "selected_features_by_fold_count": {
+        "capacity_fade_rate": 4,
+        "coulombic_efficiency": 4,
+        "discharge_energy": 4,
+        "eis_re": 4,
+        "internal_resistance": 4,
+        "mean_discharge_voltage": 1,
+        "temp_max": 3,
+        "temp_mean": 4,
+        "temp_min": 4,
+        "temp_range": 4
+      },
+      "train_time_mean_s": 1.5198185932531487,
+      "_kind": "classical"
+    },
+    "lstm": {
+      "inference_time_ms_mean": 0.9405534678565649,
+      "inference_time_ms_p95": 1.9750566001069543,
+      "mae_mean": 0.034210622853909925,
+      "mae_seed_std_mean": 0.010430131713154746,
+      "mae_std": 0.011426939337861484,
+      "maxae_mean": 0.08620997766653696,
+      "maxae_seed_std_mean": 0.021074196560865503,
+      "maxae_std": 0.026751774148650945,
+      "per_fold_r2": [
+        0.8991395206328828,
+        0.5712687952697008,
+        0.7752116558957266,
+        0.2741628776964231
+      ],
+      "per_fold_rmse": [
+        0.025609072297811508,
+        0.05168034757177035,
+        0.0274619422852993,
+        0.05408647656440735
+      ],
+      "per_fold_val_rmse": [
+        0.028989639443655808,
+        0.16616296830276647,
+        0.07716009765863419,
+        0.037019903461138405
+      ],
+      "r2_mean": 0.6299457123736834,
+      "r2_seed_std_mean": 0.1877422802930313,
+      "r2_std": 0.2364275294906742,
+      "rmse_mean": 0.039709459679822125,
+      "rmse_seed_std_mean": 0.011673145722635095,
+      "rmse_std": 0.013217633847186347,
+      "selected_features_by_fold_count": {
+        "capacity_fade_rate": 4,
+        "coulombic_efficiency": 4,
+        "discharge_energy": 4,
+        "eis_re": 4,
+        "internal_resistance": 4,
+        "mean_discharge_voltage": 1,
+        "temp_max": 3,
+        "temp_mean": 4,
+        "temp_min": 4,
+        "temp_range": 4
+      },
+      "train_time_mean_s": 31.337550559003525,
+      "_kind": "dl"
+    },
+    "cnn": {
+      "inference_time_ms_mean": 0.7858028545645842,
+      "inference_time_ms_p95": 1.5136918259183088,
+      "mae_mean": 0.047501146638145045,
+      "mae_seed_std_mean": 0.022393976276411112,
+      "mae_std": 0.013190443439629196,
+      "maxae_mean": 0.13227700193723044,
+      "maxae_seed_std_mean": 0.05461429655493125,
+      "maxae_std": 0.03962040729120363,
+      "per_fold_r2": [
+        0.6681927011218498,
+        -1.2194090697576263,
+        0.482032530740143,
+        0.3475688022235805
+      ],
+      "per_fold_rmse": [
+        0.04559838275114695,
+        0.09141553690036137,
+        0.04538928841551145,
+        0.052268089105685554
+      ],
+      "per_fold_val_rmse": [
+        0.03171585500240326,
+        0.038809703662991524,
+        0.029329342146714527,
+        0.02922986075282097
+      ],
+      "r2_mean": 0.06959624108198675,
+      "r2_seed_std_mean": 0.8681855281267125,
+      "r2_std": 0.7528653350898131,
+      "rmse_mean": 0.05866782429317634,
+      "rmse_seed_std_mean": 0.027909230535783914,
+      "rmse_std": 0.01910823846373437,
+      "selected_features_by_fold_count": {
+        "capacity_fade_rate": 4,
+        "coulombic_efficiency": 4,
+        "discharge_energy": 4,
+        "eis_re": 4,
+        "internal_resistance": 4,
+        "mean_discharge_voltage": 1,
+        "temp_max": 3,
+        "temp_mean": 4,
+        "temp_min": 4,
+        "temp_range": 4
+      },
+      "train_time_mean_s": 24.340950111009686,
+      "_kind": "dl"
+    },
+    "transformer": {
+      "inference_time_ms_mean": 4.5808585993897095,
+      "inference_time_ms_p95": 10.740655602179077,
+      "mae_mean": 0.04154291438559691,
+      "mae_seed_std_mean": 0.019399640765905717,
+      "mae_std": 0.01368091228427512,
+      "maxae_mean": 0.09233789642651875,
+      "maxae_seed_std_mean": 0.028758191827472804,
+      "maxae_std": 0.02442177432488756,
+      "per_fold_r2": [
+        0.8502777073335747,
+        0.3998335878275272,
+        -0.4914602255361706,
+        0.6660999743230471
+      ],
+      "per_fold_rmse": [
+        0.03160040701429049,
+        0.060019892950852714,
+        0.06264438790579636,
+        0.036485894893606506
+      ],
+      "per_fold_val_rmse": [
+        0.026045219972729683,
+        0.023613874490062397,
+        0.022418542454640072,
+        0.014980682171881199
+      ],
+      "r2_mean": 0.35618776098699456,
+      "r2_seed_std_mean": 0.6066100518362147,
+      "r2_std": 0.5149229365431752,
+      "rmse_mean": 0.04768764569113652,
+      "rmse_seed_std_mean": 0.020685645705021367,
+      "rmse_std": 0.01378465568418686,
+      "selected_features_by_fold_count": {
+        "capacity_fade_rate": 4,
+        "coulombic_efficiency": 4,
+        "discharge_energy": 4,
+        "eis_re": 4,
+        "internal_resistance": 4,
+        "mean_discharge_voltage": 1,
+        "temp_max": 3,
+        "temp_mean": 4,
+        "temp_min": 4,
+        "temp_range": 4
+      },
+      "train_time_mean_s": 47.25155993741161,
+      "_kind": "dl"
+    }
+  },
+  "calce": {
+    "naive": {
+      "inference_time_ms_mean": 0.0010224136349279433,
+      "inference_time_ms_p95": 0.0009800729458220299,
+      "mae_mean": 0.06401143602774409,
+      "mae_std": 0.010077675264295247,
+      "maxae_mean": 0.19228669178369148,
+      "maxae_std": 0.02274419787741584,
+      "per_fold_r2": [
+        -0.01273939254265355,
+        -0.01761343880838462,
+        -0.013507810289368871,
+        -0.0015403186256479628
+      ],
+      "per_fold_rmse": [
+        0.07306887405501254,
+        0.08350011609653822,
+        0.05927214804977408,
+        0.08882060562445049
+      ],
+      "r2_mean": -0.01135024006651375,
+      "r2_std": 0.005959175090242096,
+      "rmse_mean": 0.07616543595644383,
+      "rmse_std": 0.01127965784045067,
+      "selected_features_by_fold_count": {
+        "capacity_fade_rate": 4,
+        "coulombic_efficiency": 4,
+        "discharge_energy": 4,
+        "ica_peak_area": 4,
+        "ica_peak_height": 4,
+        "ica_peak_voltage": 4,
+        "ica_secondary_ratio": 4,
+        "mean_discharge_voltage": 4
+      },
+      "train_time_mean_s": 0.00010442700295243412,
+      "_kind": "classical"
+    },
+    "rf": {
+      "inference_time_ms_mean": 18.389051152407774,
+      "inference_time_ms_p95": 20.022737363615306,
+      "mae_mean": 0.016182061080911733,
+      "mae_std": 0.008376827099992969,
+      "maxae_mean": 0.059370759186642946,
+      "maxae_std": 0.015156450414997054,
+      "per_fold_r2": [
+        0.8514849320378367,
+        0.8453505074441616,
+        0.9787722890845567,
+        0.9782708631532062
+      ],
+      "per_fold_rmse": [
+        0.027981360244094113,
+        0.03255141800924201,
+        0.00857805248172285,
+        0.013082801407832835
+      ],
+      "r2_mean": 0.9134696479299402,
+      "r2_std": 0.0650883145059977,
+      "rmse_mean": 0.02054840803572295,
+      "rmse_std": 0.009979300092790896,
+      "selected_features_by_fold_count": {
+        "capacity_fade_rate": 4,
+        "coulombic_efficiency": 4,
+        "discharge_energy": 4,
+        "ica_peak_area": 4,
+        "ica_peak_height": 4,
+        "ica_peak_voltage": 4,
+        "ica_secondary_ratio": 4,
+        "mean_discharge_voltage": 4
+      },
+      "train_time_mean_s": 21.941722406249028,
+      "_kind": "classical"
+    },
+    "svr": {
+      "inference_time_ms_mean": 0.07898417985416017,
+      "inference_time_ms_p95": 0.09068603176274334,
+      "mae_mean": 0.015842474848189205,
+      "mae_std": 0.00852653385314419,
+      "maxae_mean": 0.10392492247664015,
+      "maxae_std": 0.023168366712766633,
+      "per_fold_r2": [
+        0.7488444521069666,
+        0.9141105104050826,
+        0.9694751443221926,
+        0.9795726965613762
+      ],
+      "per_fold_rmse": [
+        0.036387729001205155,
+        0.02425859664540845,
+        0.01028641226595436,
+        0.012684841108711901
+      ],
+      "r2_mean": 0.9030007008489045,
+      "r2_std": 0.09242523878388813,
+      "rmse_mean": 0.020904394755319966,
+      "rmse_std": 0.010383724331655006,
+      "selected_features_by_fold_count": {
+        "capacity_fade_rate": 4,
+        "coulombic_efficiency": 4,
+        "discharge_energy": 4,
+        "ica_peak_area": 4,
+        "ica_peak_height": 4,
+        "ica_peak_voltage": 4,
+        "ica_secondary_ratio": 4,
+        "mean_discharge_voltage": 4
+      },
+      "train_time_mean_s": 1.7264505732309772,
+      "_kind": "classical"
+    },
+    "gpr": {
+      "inference_time_ms_mean": 1.0671585275849793,
+      "inference_time_ms_p95": 2.908296344685367,
+      "mae_mean": 0.015076664757858006,
+      "mae_std": 0.0084464275948785,
+      "maxae_mean": 0.06706549761060321,
+      "maxae_std": 0.010008877747511455,
+      "per_fold_r2": [
+        0.8455512195789773,
+        0.8773589743410249,
+        0.9784182316829603,
+        0.9909284746726895
+      ],
+      "per_fold_rmse": [
+        0.02853486388959093,
+        0.02898768607318566,
+        0.008649293404732668,
+        0.008453171306692448
+      ],
+      "r2_mean": 0.923064225068913,
+      "r2_std": 0.062783075718488,
+      "rmse_mean": 0.018656253668550424,
+      "rmse_std": 0.010106527331819742,
+      "selected_features_by_fold_count": {
+        "capacity_fade_rate": 4,
+        "coulombic_efficiency": 4,
+        "discharge_energy": 4,
+        "ica_peak_area": 4,
+        "ica_peak_height": 4,
+        "ica_peak_voltage": 4,
+        "ica_secondary_ratio": 4,
+        "mean_discharge_voltage": 4
+      },
+      "train_time_mean_s": 36.30707155224809,
+      "_kind": "classical"
+    },
+    "lstm": {
+      "inference_time_ms_mean": 0.858276954216611,
+      "inference_time_ms_p95": 1.7778079835503977,
+      "mae_mean": 0.02021617729527255,
+      "mae_seed_std_mean": 0.0039714261902653696,
+      "mae_std": 0.004245575208785888,
+      "maxae_mean": 0.12895531952381134,
+      "maxae_seed_std_mean": 0.030575344091801775,
+      "maxae_std": 0.033513990267365894,
+      "per_fold_r2": [
+        0.8834050325647053,
+        0.9209977819221439,
+        0.8801371142045227,
+        0.8674060909032418
+      ],
+      "per_fold_rmse": [
+        0.024483156700929005,
+        0.023132196937998135,
+        0.02014016608397166,
+        0.03148994967341423
+      ],
+      "per_fold_val_rmse": [
+        0.01635615403453509,
+        0.02036381388703982,
+        0.04348004733522733,
+        0.04270968275765578
+      ],
+      "r2_mean": 0.8879865048986534,
+      "r2_seed_std_mean": 0.03908576107458927,
+      "r2_std": 0.01997436278057451,
+      "rmse_mean": 0.024811367349078257,
+      "rmse_seed_std_mean": 0.004463144521293508,
+      "rmse_std": 0.004163859946644216,
+      "selected_features_by_fold_count": {
+        "capacity_fade_rate": 4,
+        "coulombic_efficiency": 4,
+        "discharge_energy": 4,
+        "ica_peak_area": 4,
+        "ica_peak_height": 4,
+        "ica_peak_voltage": 4,
+        "ica_secondary_ratio": 4,
+        "mean_discharge_voltage": 4
+      },
+      "train_time_mean_s": 56.99277817017476,
+      "_kind": "dl"
+    },
+    "cnn": {
+      "inference_time_ms_mean": 0.6562293641521441,
+      "inference_time_ms_p95": 0.9664007135143029,
+      "mae_mean": 0.03189122133577864,
+      "mae_seed_std_mean": 0.01323652649985155,
+      "mae_std": 0.012568998485229743,
+      "maxae_mean": 0.19185307621955872,
+      "maxae_seed_std_mean": 0.020678789261574862,
+      "maxae_std": 0.023201840933048435,
+      "per_fold_r2": [
+        0.18533550368147178,
+        0.6457429599805551,
+        0.7471091826754458,
+        0.9011457368300141
+      ],
+      "per_fold_rmse": [
+        0.05917341013749441,
+        0.04622825856010119,
+        0.02921672413746516,
+        0.027074300373593967
+      ],
+      "per_fold_val_rmse": [
+        0.02225407523413499,
+        0.02322552166879177,
+        0.03379392375548681,
+        0.03364041447639465
+      ],
+      "r2_mean": 0.6198333457918717,
+      "r2_seed_std_mean": 0.2681321293971853,
+      "r2_std": 0.2668311652112677,
+      "rmse_mean": 0.040423173302163676,
+      "rmse_seed_std_mean": 0.0143521102525678,
+      "rmse_std": 0.013124855309459511,
+      "selected_features_by_fold_count": {
+        "capacity_fade_rate": 4,
+        "coulombic_efficiency": 4,
+        "discharge_energy": 4,
+        "ica_peak_area": 4,
+        "ica_peak_height": 4,
+        "ica_peak_voltage": 4,
+        "ica_secondary_ratio": 4,
+        "mean_discharge_voltage": 4
+      },
+      "train_time_mean_s": 78.63462918032019,
+      "_kind": "dl"
+    },
+    "transformer": {
+      "inference_time_ms_mean": 2.2049435022684825,
+      "inference_time_ms_p95": 3.3213747497939012,
+      "mae_mean": 0.016985039692372087,
+      "mae_seed_std_mean": 0.004930191332135377,
+      "mae_std": 0.0033011734909817987,
+      "maxae_mean": 0.10237065454324086,
+      "maxae_seed_std_mean": 0.02671834533562849,
+      "maxae_std": 0.05080493238886199,
+      "per_fold_r2": [
+        0.8934309078840915,
+        0.9049876335577749,
+        0.876083340531909,
+        0.9654448986161258
+      ],
+      "per_fold_rmse": [
+        0.023629714424411457,
+        0.025209677095214527,
+        0.019906722009181976,
+        0.015668437505761783
+      ],
+      "per_fold_val_rmse": [
+        0.013142880983650684,
+        0.013282275137801966,
+        0.018549130919078987,
+        0.01124739988396565
+      ],
+      "r2_mean": 0.9099866951474752,
+      "r2_seed_std_mean": 0.03717063748760722,
+      "r2_std": 0.03363084333928872,
+      "rmse_mean": 0.02110363775864244,
+      "rmse_seed_std_mean": 0.0044708213677960955,
+      "rmse_std": 0.003681529283295208,
+      "selected_features_by_fold_count": {
+        "capacity_fade_rate": 4,
+        "coulombic_efficiency": 4,
+        "discharge_energy": 4,
+        "ica_peak_area": 4,
+        "ica_peak_height": 4,
+        "ica_peak_voltage": 4,
+        "ica_secondary_ratio": 4,
+        "mean_discharge_voltage": 4
+      },
+      "train_time_mean_s": 151.68521652807732,
+      "_kind": "dl"
+    }
+  },
+  "all": {
+    "naive": {
+      "inference_time_ms_mean": 0.0006674462929368019,
+      "inference_time_ms_p95": 0.0007398859452223404,
+      "mae_mean": 0.09105583560219276,
+      "mae_std": 0.03185262073497576,
+      "maxae_mean": 0.18711334514968553,
+      "maxae_std": 0.06419751266411337,
+      "per_fold_r2": [
+        -0.31716940820296724,
+        -1.5968932715000919,
+        -0.1862780547235845,
+        -0.6727219609151627,
+        -0.19507571286843706,
+        -0.09916920521521777,
+        -0.2573724915132316,
+        -0.053954086559450554
+      ],
+      "per_fold_rmse": [
+        0.11645644905871526,
+        0.19700701418151337,
+        0.09074832295792826,
+        0.10472466738677041,
+        0.0841051472119818,
+        0.07715268241404225,
+        0.06601902315202225,
+        0.0911151002905141
+      ],
+      "r2_mean": -0.42232927393726793,
+      "r2_std": 0.47802503690896414,
+      "rmse_mean": 0.10341605083168595,
+      "rmse_std": 0.03824923331940842,
+      "selected_features_by_fold_count": {
+        "capacity_fade_rate": 8,
+        "coulombic_efficiency": 8,
+        "discharge_energy": 8,
+        "ica_peak_area": 8,
+        "ica_peak_height": 8,
+        "ica_peak_voltage": 8,
+        "ica_secondary_ratio": 8,
+        "internal_resistance": 2,
+        "mean_discharge_voltage": 8,
+        "temp_mean": 8,
+        "temp_min": 8
+      },
+      "train_time_mean_s": 0.00029059376538498327,
+      "_kind": "classical"
+    },
+    "rf": {
+      "inference_time_ms_mean": 25.729994539215113,
+      "inference_time_ms_p95": 28.632057476716,
+      "mae_mean": 0.019702801394066483,
+      "mae_std": 0.013627944895777651,
+      "maxae_mean": 0.07349789465606947,
+      "maxae_std": 0.03640064465414875,
+      "per_fold_r2": [
+        0.9907049028617072,
+        0.7220642967541602,
+        0.9730752223376434,
+        0.9566649092573285,
+        0.7620065598994837,
+        0.837431261241874,
+        0.9748999212098778,
+        0.9372802058378369
+      ],
+      "per_fold_rmse": [
+        0.009782946809904,
+        0.06445057673594848,
+        0.013671665453604723,
+        0.01685609481389406,
+        0.03753248834294024,
+        0.02967134764290883,
+        0.009327701917684767,
+        0.02222704985793687
+      ],
+      "r2_mean": 0.894265909924989,
+      "r2_std": 0.0988263655147177,
+      "rmse_mean": 0.025439983946852745,
+      "rmse_std": 0.017368100476933112,
+      "selected_features_by_fold_count": {
+        "capacity_fade_rate": 8,
+        "coulombic_efficiency": 8,
+        "discharge_energy": 8,
+        "ica_peak_area": 8,
+        "ica_peak_height": 8,
+        "ica_peak_voltage": 8,
+        "ica_secondary_ratio": 8,
+        "internal_resistance": 2,
+        "mean_discharge_voltage": 8,
+        "temp_mean": 8,
+        "temp_min": 8
+      },
+      "train_time_mean_s": 38.4328966717585,
+      "_kind": "classical"
+    },
+    "svr": {
+      "inference_time_ms_mean": 0.0826350630086381,
+      "inference_time_ms_p95": 0.0985690865491051,
+      "mae_mean": 0.026085273856127696,
+      "mae_std": 0.01567731362569838,
+      "maxae_mean": 0.12739848445111981,
+      "maxae_std": 0.03658808112146312,
+      "per_fold_r2": [
+        0.9114327061290755,
+        0.7852895247856402,
+        0.9005444963355492,
+        0.8586620067772851,
+        0.677667312718643,
+        0.25375611852169755,
+        0.9561589904171136,
+        0.9858502708611978
+      ],
+      "per_fold_rmse": [
+        0.030198085716667485,
+        0.05664756611194354,
+        0.02627603128819699,
+        0.03044153660773901,
+        0.04367943776253009,
+        0.06357101497782716,
+        0.012327567521970693,
+        0.010557317306083443
+      ],
+      "r2_mean": 0.7911701783182752,
+      "r2_std": 0.22300055065755248,
+      "rmse_mean": 0.034212319661619806,
+      "rmse_std": 0.017981652676749147,
+      "selected_features_by_fold_count": {
+        "capacity_fade_rate": 8,
+        "coulombic_efficiency": 8,
+        "discharge_energy": 8,
+        "ica_peak_area": 8,
+        "ica_peak_height": 8,
+        "ica_peak_voltage": 8,
+        "ica_secondary_ratio": 8,
+        "internal_resistance": 2,
+        "mean_discharge_voltage": 8,
+        "temp_mean": 8,
+        "temp_min": 8
+      },
+      "train_time_mean_s": 18.736001885503356,
+      "_kind": "classical"
+    },
+    "gpr": {
+      "inference_time_ms_mean": 2.25480831846653,
+      "inference_time_ms_p95": 5.80614708997018,
+      "mae_mean": 0.019944954566555883,
+      "mae_std": 0.011032760202863635,
+      "maxae_mean": 0.08445052228874034,
+      "maxae_std": 0.02199156774550935,
+      "per_fold_r2": [
+        0.971725099352225,
+        0.8634818744912283,
+        0.9493130754904129,
+        0.8815134888676022,
+        0.7989407316786821,
+        0.7329549189530278,
+        0.9669844627998374,
+        0.9879239916928346
+      ],
+      "per_fold_rmse": [
+        0.017062523781247174,
+        0.0451699694263269,
+        0.018758293646752647,
+        0.027872220314052315,
+        0.034497443653996956,
+        0.0380286619710172,
+        0.010697844989262751,
+        0.009753067120562946
+      ],
+      "r2_mean": 0.8941047054157313,
+      "r2_std": 0.08610178517129015,
+      "rmse_mean": 0.025230003112902362,
+      "rmse_std": 0.012316577246522194,
+      "selected_features_by_fold_count": {
+        "capacity_fade_rate": 8,
+        "coulombic_efficiency": 8,
+        "discharge_energy": 8,
+        "ica_peak_area": 8,
+        "ica_peak_height": 8,
+        "ica_peak_voltage": 8,
+        "ica_secondary_ratio": 8,
+        "internal_resistance": 2,
+        "mean_discharge_voltage": 8,
+        "temp_mean": 8,
+        "temp_min": 8
+      },
+      "train_time_mean_s": 258.10857821875834,
+      "_kind": "classical"
+    },
+    "lstm": {
+      "inference_time_ms_mean": 0.7691027874049421,
+      "inference_time_ms_p95": 1.1543914670861943,
+      "mae_mean": 0.03531447390560061,
+      "mae_seed_std_mean": 0.007487665606638001,
+      "mae_std": 0.02195943528316514,
+      "maxae_mean": 0.1200163463751475,
+      "maxae_seed_std_mean": 0.022284715961759387,
+      "maxae_std": 0.06317813499771446,
+      "per_fold_r2": [
+        0.9236157803031207,
+        0.611531946607229,
+        0.9634513526569467,
+        0.8797199118870925,
+        0.41767172575283357,
+        0.2436241736881195,
+        0.7848548023749876,
+        0.8805711735495256
+      ],
+      "per_fold_rmse": [
+        0.02496934247513612,
+        0.06015379230181376,
+        0.014136717033882936,
+        0.020884625613689423,
+        0.06646240999301274,
+        0.0844368909796079,
+        0.027014415090282757,
+        0.029633065685629845
+      ],
+      "per_fold_val_rmse": [
+        0.015803838148713112,
+        0.012389788093666235,
+        0.012521420605480671,
+        0.014726872245470682,
+        0.01924903877079487,
+        0.0217231847345829,
+        0.037348744769891105,
+        0.03505891809860865
+      ],
+      "r2_mean": 0.7131301083524819,
+      "r2_seed_std_mean": 0.09856886313034828,
+      "r2_std": 0.24646290621987157,
+      "rmse_mean": 0.04096140739663194,
+      "rmse_seed_std_mean": 0.00787797438390848,
+      "rmse_std": 0.024005217362919423,
+      "selected_features_by_fold_count": {
+        "capacity_fade_rate": 8,
+        "coulombic_efficiency": 8,
+        "discharge_energy": 8,
+        "ica_peak_area": 8,
+        "ica_peak_height": 8,
+        "ica_peak_voltage": 8,
+        "ica_secondary_ratio": 8,
+        "internal_resistance": 2,
+        "mean_discharge_voltage": 8,
+        "temp_mean": 8,
+        "temp_min": 8
+      },
+      "train_time_mean_s": 80.39152620649595,
+      "_kind": "dl"
+    },
+    "cnn": {
+      "inference_time_ms_mean": 0.6241273984172342,
+      "inference_time_ms_p95": 0.7777960875197698,
+      "mae_mean": 0.04087261211437484,
+      "mae_seed_std_mean": 0.014628609188794987,
+      "mae_std": 0.024000480510986116,
+      "maxae_mean": 0.14713802685340244,
+      "maxae_seed_std_mean": 0.027462935194947243,
+      "maxae_std": 0.07350365097290548,
+      "per_fold_r2": [
+        0.9607502036851562,
+        0.6378372957540946,
+        0.8522092428797249,
+        0.3208023869278404,
+        -1.1350023276680101,
+        0.38019148884080584,
+        0.7694454195512813,
+        0.8744320171912694
+      ],
+      "per_fold_rmse": [
+        0.01820908362666766,
+        0.05910017589728037,
+        0.02840135122338931,
+        0.04959197590748469,
+        0.10062689830859502,
+        0.07655650128920873,
+        0.027793871238827705,
+        0.031200735519329708
+      ],
+      "per_fold_val_rmse": [
+        0.018044307207067806,
+        0.01734134741127491,
+        0.017972140883406002,
+        0.018867406994104385,
+        0.021611638988057773,
+        0.023578138401110966,
+        0.025592127194007237,
+        0.0221808726588885
+      ],
+      "r2_mean": 0.4575832158952703,
+      "r2_seed_std_mean": 0.4451968479933698,
+      "r2_std": 0.6396724159138183,
+      "rmse_mean": 0.0489350741263479,
+      "rmse_seed_std_mean": 0.016566246301328538,
+      "rmse_std": 0.026612793524841215,
+      "selected_features_by_fold_count": {
+        "capacity_fade_rate": 8,
+        "coulombic_efficiency": 8,
+        "discharge_energy": 8,
+        "ica_peak_area": 8,
+        "ica_peak_height": 8,
+        "ica_peak_voltage": 8,
+        "ica_secondary_ratio": 8,
+        "internal_resistance": 2,
+        "mean_discharge_voltage": 8,
+        "temp_mean": 8,
+        "temp_min": 8
+      },
+      "train_time_mean_s": 81.51970577617371,
+      "_kind": "dl"
+    },
+    "transformer": {
+      "inference_time_ms_mean": 2.0777799774805317,
+      "inference_time_ms_p95": 2.5951399905655603,
+      "mae_mean": 0.028095577300215762,
+      "mae_seed_std_mean": 0.008164506648356225,
+      "mae_std": 0.009713016182385835,
+      "maxae_mean": 0.11184686422348021,
+      "maxae_seed_std_mean": 0.024886561391649978,
+      "maxae_std": 0.058862428271108144,
+      "per_fold_r2": [
+        0.9289933431416255,
+        0.7687837449894035,
+        0.829979439748557,
+        0.929889370403111,
+        0.586612639592969,
+        0.7635365117483476,
+        0.5434587324441104,
+        0.9349527510949477
+      ],
+      "per_fold_rmse": [
+        0.023995033154884975,
+        0.04763119543592135,
+        0.02906104487677415,
+        0.01695174692819516,
+        0.053772867967685066,
+        0.041864957039554916,
+        0.03957227244973183,
+        0.0223613182703654
+      ],
+      "per_fold_val_rmse": [
+        0.012897493007282415,
+        0.01195469405502081,
+        0.01372279537220796,
+        0.012318259415527185,
+        0.017220937957366306,
+        0.017963511869311333,
+        0.02046823874115944,
+        0.01766891187677781
+      ],
+      "r2_mean": 0.7857758166453839,
+      "r2_seed_std_mean": 0.09882505166681738,
+      "r2_std": 0.14346365040946946,
+      "rmse_mean": 0.03440130451538911,
+      "rmse_seed_std_mean": 0.008690397781981898,
+      "rmse_std": 0.012343974684742066,
+      "selected_features_by_fold_count": {
+        "capacity_fade_rate": 8,
+        "coulombic_efficiency": 8,
+        "discharge_energy": 8,
+        "ica_peak_area": 8,
+        "ica_peak_height": 8,
+        "ica_peak_voltage": 8,
+        "ica_secondary_ratio": 8,
+        "internal_resistance": 2,
+        "mean_discharge_voltage": 8,
+        "temp_mean": 8,
+        "temp_min": 8
+      },
+      "train_time_mean_s": 165.62598632816662,
+      "_kind": "dl"
+    }
+  }
+}
