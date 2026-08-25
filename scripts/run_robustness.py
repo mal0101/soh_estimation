@@ -29,8 +29,8 @@ sys.path.insert(0, str(ROOT))
 
 from src.evaluation.metrics import compute_all_metrics  # noqa: E402
 
-NOISE_LEVELS = [0.005, 0.01, 0.02]
-MISSING_FRACTIONS = [0.1, 0.2, 0.3]
+DEFAULT_NOISE_LEVELS = [0.005, 0.01, 0.02]
+DEFAULT_MISSING_FRACTIONS = [0.1, 0.2, 0.3]
 
 
 def load_fold_data(dataset: str) -> tuple[pd.DataFrame, list[dict]]:
@@ -42,7 +42,8 @@ def load_fold_data(dataset: str) -> tuple[pd.DataFrame, list[dict]]:
     return df, payload["folds"]
 
 
-def run_noise(df: pd.DataFrame, folds: list[dict], dataset: str, rng_seed: int = 42) -> dict:
+def run_noise(df: pd.DataFrame, folds: list[dict], dataset: str,
+              noise_levels: list[float], rng_seed: int = 42) -> dict:
     results: dict[str, dict[str, dict]] = {m: {} for m in ["rf", "svr", "gpr"]}
     for fold in folds:
         fold_idx = fold["fold"]
@@ -67,11 +68,14 @@ def run_noise(df: pd.DataFrame, folds: list[dict], dataset: str, rng_seed: int =
             scaler = StandardScaler().fit(tr[cols].values)
             X_te_s = scaler.transform(X_te_raw)
 
-            for level in NOISE_LEVELS:
+            for level in noise_levels:
                 key = str(level)
                 rng = np.random.RandomState(rng_seed + fold_idx)
-                sigma = level * scaler.scale_  # fraction of train std (scaled space ~1)
-                Xn = X_te_s + rng.randn(*X_te_s.shape) * sigma
+                # Noise is injected in the SCALED space, where each feature's
+                # training std is exactly 1: adding N(0, level) therefore
+                # perturbs every feature by `level` of its own train-time
+                # variability, regardless of raw units.
+                Xn = X_te_s + rng.randn(*X_te_s.shape) * level
                 pred = model.predict(Xn)
                 m = compute_all_metrics(y_te, pred)
                 if key not in results[model_name]:
@@ -90,7 +94,8 @@ def run_noise(df: pd.DataFrame, folds: list[dict], dataset: str, rng_seed: int =
 
 
 def run_missing_cycles(
-    df: pd.DataFrame, folds: list[dict], dataset: str, rng_seed: int = 42
+    df: pd.DataFrame, folds: list[dict], dataset: str,
+    missing_fractions: list[float], rng_seed: int = 42
 ) -> dict:
     results: dict[str, dict[str, dict]] = {m: {} for m in ["rf", "svr", "gpr"]}
     for fold in folds:
@@ -110,7 +115,7 @@ def run_missing_cycles(
 
             scaler = StandardScaler().fit(tr[cols].values)
 
-            for frac in MISSING_FRACTIONS:
+            for frac in missing_fractions:
                 key = str(frac)
                 rng = np.random.RandomState(rng_seed + fold_idx)
                 keep_mask = rng.rand(len(te)) >= frac
@@ -138,13 +143,20 @@ def run_missing_cycles(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Robustness analysis")
     parser.add_argument("--dataset", choices=["nasa", "calce", "all"], default="all")
+    parser.add_argument("--config", default="config/default.yaml")
     args = parser.parse_args()
+
+    import yaml as _yaml
+    cfg = _yaml.safe_load((ROOT / args.config).read_text())
+    rob_cfg = cfg.get("evaluation", {}).get("robustness", {})
+    noise_levels = rob_cfg.get("noise_levels", DEFAULT_NOISE_LEVELS)
+    missing_fractions = rob_cfg.get("missing_cycle_fractions", DEFAULT_MISSING_FRACTIONS)
 
     df, folds = load_fold_data(args.dataset)
     print(f"Loaded {len(df)} rows, {len(folds)} folds")
 
-    noise = run_noise(df, folds, args.dataset)
-    missing = run_missing_cycles(df, folds, args.dataset)
+    noise = run_noise(df, folds, args.dataset, noise_levels=noise_levels)
+    missing = run_missing_cycles(df, folds, args.dataset, missing_fractions=missing_fractions)
 
     out_path = ROOT / "experiments" / f"robustness_{args.dataset}.yaml"
     with open(out_path, "w") as fh:

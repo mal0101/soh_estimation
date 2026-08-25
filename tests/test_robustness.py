@@ -2,6 +2,7 @@
 
 import numpy as np
 import pandas as pd
+import pytest
 
 
 def inject_gaussian_noise(
@@ -126,3 +127,46 @@ class TestMissingCycles:
         )
         reduced = drop_random_cycles(df, fraction=0.2)
         assert len(reduced) == 80
+
+
+class TestNoiseSemantics:
+    """Pin the scaled-space noise semantics used by scripts/run_robustness.py."""
+
+    def test_noise_level_matches_train_std_units(self):
+        """Adding N(0, level) in scaled space == level x train-std in raw space."""
+        from sklearn.preprocessing import StandardScaler
+
+        rng = np.random.RandomState(0)
+        raw = rng.randn(500, 3) * np.array([100.0, 0.01, 5.0]) + np.array([10.0, 2.0, -3.0])
+        scaler = StandardScaler().fit(raw)
+        scaled = scaler.transform(raw)
+
+        level = 0.05
+        noisy_scaled = scaled + np.random.RandomState(1).randn(*scaled.shape) * level
+
+        # Recover raw-space perturbation and compare to level * train std.
+        recovered_raw = scaler.inverse_transform(noisy_scaled)
+        delta_raw = recovered_raw - raw
+        expected_std = level * scaler.scale_
+        # Sample std of the injected noise should approximate level*std per feature.
+        assert np.allclose(delta_raw.std(axis=0), expected_std, rtol=0.25)
+
+    def test_relative_noise_is_scale_invariant(self):
+        """The same `level` must produce the same relative degradation for a
+        100x-rescaled feature (this is what the fixed implementation buys)."""
+        from sklearn.preprocessing import StandardScaler
+
+        rng = np.random.RandomState(0)
+        base = rng.randn(400, 1)
+
+        def rel_rmse_after_noise(mat):
+            sc = StandardScaler().fit(mat)
+            s = sc.transform(mat)
+            s_noisy = s + np.random.RandomState(7).randn(*s.shape) * 0.1
+            return float(np.sqrt(np.mean((sc.inverse_transform(s_noisy) - mat) ** 2))) / float(
+                np.std(mat)
+            )
+
+        r1 = rel_rmse_after_noise(base)
+        r2 = rel_rmse_after_noise(base * 100.0 + 50.0)
+        assert r1 == pytest.approx(r2, rel=0.35)

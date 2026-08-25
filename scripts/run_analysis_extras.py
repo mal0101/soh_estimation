@@ -101,8 +101,8 @@ def gpr_calibration(df: pd.DataFrame, folds: list[dict], dataset: str) -> dict |
     }
 
 
-def deployability(dataset: str) -> dict:
-    targets = {"target_inference_ms": 200.0, "target_size_mb": 4.0}
+def deployability(dataset: str, targets: dict | None = None) -> dict:
+    targets = targets or {"target_inference_ms": 200.0, "target_size_mb": 4.0}
     models_dir = ROOT / "experiments" / "models" / dataset
     report = {}
     for model_name in ["naive", "rf", "svr", "gpr"]:
@@ -132,6 +132,7 @@ def deployability(dataset: str) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description="SHAP + calibration + deployability")
     parser.add_argument("--dataset", choices=["nasa", "calce", "all"], default="all")
+    parser.add_argument("--config", default="config/default.yaml")
     args = parser.parse_args()
 
     analysis_dir = ROOT / "experiments" / "analysis"
@@ -154,7 +155,15 @@ def main() -> None:
             yaml.safe_dump(cal, fh, sort_keys=False)
         print(f"Wrote {p}")
 
-    dep = deployability(args.dataset)
+    cfg_path = ROOT / args.config
+    dep_targets = {}
+    if cfg_path.exists():
+        _cfg = yaml.safe_load(cfg_path.read_text())
+        dep_targets = {
+            "target_inference_ms": float(_cfg["evaluation"]["deployability"]["target_inference_ms"]),
+            "target_size_mb": float(_cfg["evaluation"]["deployability"]["target_size_mb"]),
+        }
+    dep = deployability(args.dataset, targets=dep_targets)
     p = ROOT / "experiments" / f"deployability_{args.dataset}.yaml"
     with open(p, "w") as fh:
         yaml.safe_dump(dep, fh, sort_keys=False)
