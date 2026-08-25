@@ -25,27 +25,31 @@ preprocessing:
     n_points: 1000
   soh:
     q_initial_cycles: [3, 10]
-    eol_threshold: 0.80
+    q_reduction: median   # median (robust to outlier cycles) or mean
+    eol_threshold: 0.80   # informational: EOL definition used in reporting
     soh_cap: 1.0
   cycle_segmentation:
     min_discharge_fraction: 0.90
+    early_cycle_window: 20        # strict capacity rule applies to cycles <= this
+    interruption_fraction: 0.93   # any discharge < fraction x local median is dropped (catches CALCE RPT dips)
+    interruption_window: 5        # neighbours on each side for the local median
+    run_drop_fraction: 0.70       # recovered low runs are anomalies if mean depth < fraction x q_initial
+    run_entry_fraction: 0.75      # cycle joins a candidate anomalous run when capacity < fraction x q_initial
     current_sign_convention: "positive=charge"
 
 features:
   ica:
-    min_peak_prominence: 0.01
-    compute_secondary_peak: true
+    min_peak_prominence: 0.01   # relative threshold: fraction of max dQ/dV
   internal_resistance:
     use_eis_if_available: true
   feature_selection:
     correlation_threshold: 0.95
-    top_k_features: 20
+    top_k_features: 20          # refit per LOOCV fold on training cells only
   scaling:
     method: standard  # StandardScaler
 
 models:
   sequence_window: 20
-  naive_baseline: true
 
   classical:
     rf:
@@ -57,70 +61,54 @@ models:
         max_features: ["sqrt", "log2", 0.5]
     svr:
       n_trials: 50
-      kernel: rbf
       param_space:
         C: [0.01, 1000]
         epsilon: [0.001, 0.1]
         gamma: ["scale", "auto", 0.0001, 1.0]
     gpr:
-      max_train_samples: 5000
-      kernel: "matern_1_5"
+      max_train_samples: 5000   # subsample cap (dormant at current dataset sizes)
+      kernel: "matern_1_5"      # informational: fixed Matern(nu=1.5) + WhiteKernel
       n_restarts_optimizer: 5
 
   dl:
     batch_size: 64
     max_epochs: 80
-    max_epochs_cpu: 50
-    learning_rate: 0.001
-    patience_early_stopping: 10
+    learning_rate: 0.001        # default; Optuna searches over this range
+    patience_early_stopping: 10 # applied during inner-split selection runs
     patience_lr_reduce: 5
     lr_reduce_factor: 0.5
     n_seeds: 3
-    optimizer: adam
-    loss: mse
 
     lstm:
       n_trials: 10
       default:
-        lstm_1_units: 64
-        lstm_2_units: 32
         dense_units: 16
-        dropout: 0.2
       param_space:
         lstm_1_units: [32, 64, 128]
         lstm_2_units: [16, 32, 64]
-        dropout: [0.1, 0.4]
-        learning_rate: [1e-4, 1e-2]
+        dropout: [0.1, 0.4]           # continuous range
+        learning_rate: [0.0001, 0.01] # log-uniform range
 
     cnn:
       n_trials: 10
       default:
-        filters: [32, 64, 128]
-        kernel_size: 3
         dense_units: 64
-        dropout: 0.2
       param_space:
         filters_1: [16, 32, 64]
         filters_2: [32, 64, 128]
         filters_3: [64, 128, 256]
         kernel_size: [3, 5, 7]
         dropout: [0.1, 0.4]
-        learning_rate: [1e-4, 1e-2]
+        learning_rate: [0.0001, 0.01]
 
     transformer:
       n_trials: 10
-      default:
-        d_model: 64
-        n_heads: 4
-        n_encoder_blocks: 2
-        ffn_dim: 128
-        dropout: 0.2
       param_space:
         d_model: [32, 64]
         n_heads: [2, 4]
         n_encoder_blocks: [1, 2, 3]
         dropout: [0.1, 0.3]
-        learning_rate: [1e-4, 1e-2]
+        learning_rate: [0.0001, 0.01]
 
 evaluation:
   metrics:
@@ -129,28 +117,22 @@ evaluation:
     - maxae
     - r2
   error_analysis_phases:
-    early: {min_soh: 0.90, max_soh: 1.0}
+    early: {min_soh: 0.90, max_soh: 1.01}
     mid: {min_soh: 0.80, max_soh: 0.90}
     end: {min_soh: 0.0, max_soh: 0.80}
   robustness:
     noise_levels: [0.005, 0.01, 0.02]
     missing_cycle_fractions: [0.1, 0.2, 0.3]
   deployability:
-    n_inference_repeats: 1000
+    n_inference_repeats: 200
     target_rmse: 0.02
     target_maxae: 0.05
     target_inference_ms: 200
-    bms_flash_min_kb: 256
-    bms_flash_max_mb: 4
+    target_size_mb: 4
 
 tracking:
   experiment_name: soh_benchmark
   tracking_uri: sqlite:///mlflow.db
-  log_models: true
-  log_figures: true
 
 seeding:
-  global_seed: 42
-  numpy_seed: 42
-  torch_seed: 42
-  python_seed: 42
+  base_seed: 42   # per-seed runs use base_seed + idx (DL); classical uses base_seed

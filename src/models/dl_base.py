@@ -64,6 +64,9 @@ class SOHDataset(Dataset):
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         return self.samples[idx]
 
+    def __iter__(self):
+        return iter(self.samples)
+
 
 def create_sequences(
     feature_df: pd.DataFrame,
@@ -97,21 +100,30 @@ def train_loop(
     config: dict[str, Any],
     device: torch.device,
     seed: int = 42,
-) -> dict[str, list[float]]:
+) -> dict[str, Any]:
     """Train a PyTorch model with early stopping and LR scheduling.
+
+    The weights from the BEST validation-loss epoch are restored before
+    returning: without restoration, early stopping reports metrics from
+    up to ``patience_early_stopping`` stale epochs past the optimum.
 
     Args:
         model: The neural network module.
         train_loader: Training data loader.
         val_loader: Validation data loader.
         config: Training config dict with keys: learning_rate, max_epochs,
-            patience_early_stopping, patience_lr_reduce, lr_reduce_factor.
+            patience_early_stopping, patience_lr_reduce, lr_reduce_factor,
+            and optionally fixed_epochs (train exactly this many epochs
+            with no early stopping — used for final refits).
         device: Compute device.
         seed: Random seed.
 
     Returns:
-        Dict with ``train_loss`` and ``val_loss`` lists per epoch.
+        Dict with keys: train_loss (list per epoch), val_loss (list per
+        epoch), best_epoch (int), best_val_loss (float).
     """
+    import copy
+
     set_seed(seed)
     model = model.to(device)
 
@@ -120,16 +132,24 @@ def train_loop(
     patience_es = config.get("patience_early_stopping", 10)
     patience_lr = config.get("patience_lr_reduce", 5)
     lr_factor = config.get("lr_reduce_factor", 0.5)
+    fixed_epochs = config.get("fixed_epochs")
 
     optimizer = Adam(model.parameters(), lr=lr)
     criterion = nn.MSELoss()
-    scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=lr_factor, patience=patience_lr)
+    scheduler = (
+        ReduceLROnPlateau(optimizer, mode="min", factor=lr_factor, patience=patience_lr)
+        if fixed_epochs is None
+        else None
+    )
 
     history: dict[str, list[float]] = {"train_loss": [], "val_loss": []}
     best_val_loss = float("inf")
+    best_epoch = 0
+    best_state: dict | None = None
     epochs_no_improve = 0
 
-    for epoch in range(max_epochs):
+    total_epochs = fixed_epochs if fixed_epochs is not None else max_epochs
+    for epoch in range(total_epochs):
         model.train()
         train_losses = []
         for X_batch, y_batch in train_loader:
@@ -155,19 +175,31 @@ def train_loop(
         history["train_loss"].append(mean_train)
         history["val_loss"].append(mean_val)
 
-        scheduler.step(mean_val)
-
-        if mean_val < best_val_loss:
+        improved = mean_val < best_val_loss
+        if improved:
             best_val_loss = mean_val
+            best_epoch = epoch
+            best_state = copy.deepcopy(model.state_dict())
             epochs_no_improve = 0
         else:
             epochs_no_improve += 1
 
-        if epochs_no_improve >= patience_es:
-            logger.info("Early stopping at epoch %d", epoch + 1)
+        if scheduler is not None:
+            scheduler.step(mean_val)
+
+        if fixed_epochs is None and epochs_no_improve >= patience_es:
+            logger.info("Early stopping at epoch %d (best epoch %d)", epoch + 1, best_epoch + 1)
             break
 
-    return history
+    if best_state is not None:
+        model.load_state_dict(best_state)
+
+    return {
+        "train_loss": history["train_loss"],
+        "val_loss": history["val_loss"],
+        "best_epoch": best_epoch,
+        "best_val_loss": best_val_loss,
+    }
 
 
 @torch.no_grad()

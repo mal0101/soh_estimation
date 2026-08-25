@@ -4,7 +4,13 @@ import json
 
 import numpy as np
 
-from src.evaluation.validation import cell_based_loocv, save_fold_indices, scale_features
+from src.evaluation.validation import (
+    cell_based_loocv,
+    cell_fold_splits,
+    materialize_fold,
+    save_fold_indices,
+    scale_features,
+)
 
 
 class TestCellBasedLOOCV:
@@ -94,10 +100,43 @@ class TestSaveFoldIndices:
         folds = cell_based_loocv(feature_df_small, ["feat_1", "feat_2"])
         filepath = save_fold_indices(folds, output_dir=tmp_path)
         assert filepath.exists()
+        assert filepath.name == "fold_indices_all.json"
 
         with open(filepath) as f:
             loaded = json.load(f)
 
-        assert len(loaded) == len(folds)
-        assert loaded[0]["test_cell"] == folds[0]["test_cell"]
-        assert loaded[0]["train_indices"] == folds[0]["train_indices"].tolist()
+        assert loaded["dataset"] == "all"
+        fold_list = loaded["folds"]
+        assert len(fold_list) == len(folds)
+        assert fold_list[0]["test_cell"] == folds[0]["test_cell"]
+        assert fold_list[0]["train_indices"] == folds[0]["train_indices"].tolist()
+
+    def test_suffix_per_dataset(self, feature_df_small, tmp_path):
+        folds = cell_fold_splits(feature_df_small)
+        p_all = save_fold_indices(folds, output_dir=tmp_path, dataset="all")
+        p_nasa = save_fold_indices(folds, output_dir=tmp_path, dataset="nasa")
+        assert p_all.name == "fold_indices_all.json"
+        assert p_nasa.name == "fold_indices_nasa.json"
+
+
+class TestCellFoldSplits:
+    """Tests for feature-agnostic LOOCV split construction."""
+
+    def test_disjoint_and_complete(self, feature_df_small):
+        splits = cell_fold_splits(feature_df_small)
+        assert len(splits) == feature_df_small["cell_id"].nunique()
+        all_idx = set(feature_df_small.index)
+        for s in splits:
+            assert not set(s["train_indices"]) & set(s["test_indices"])
+            assert set(s["train_indices"]) | set(s["test_indices"]) == all_idx
+
+    def test_materialize_fold_dropna(self, feature_df_small):
+        df = feature_df_small.copy()
+        df.loc[df.index[:3], "feat_1"] = np.nan
+        splits = cell_fold_splits(df)
+        # Choose the split where the NaN rows are in train.
+        s = splits[1]
+        fold = materialize_fold(df, s, ["feat_1", "feat_2"])
+        assert len(fold["X_train"]) == len(fold["train_df"])
+        assert not np.isnan(fold["X_train"]).any()
+        assert not np.isnan(fold["X_test"]).any()

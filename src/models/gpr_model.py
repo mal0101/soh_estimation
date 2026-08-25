@@ -13,6 +13,27 @@ from sklearn.gaussian_process.kernels import Matern, WhiteKernel
 logger = logging.getLogger(__name__)
 
 
+def build_gpr(n_restarts: int = 5, seed: int = 42) -> GaussianProcessRegressor:
+    """Construct an unfitted GPR with the fixed Matérn(1.5)+White kernel.
+
+    Args:
+        n_restarts: Number of optimizer restarts for kernel hyperparameters.
+        seed: Random seed.
+
+    Returns:
+        Unfitted model instance.
+    """
+    kernel = Matern(nu=1.5, length_scale=1.0, length_scale_bounds=(1e-3, 1e3)) + WhiteKernel(
+        noise_level=0.01, noise_level_bounds=(1e-5, 1e1)
+    )
+    return GaussianProcessRegressor(
+        kernel=kernel,
+        n_restarts_optimizer=n_restarts,
+        normalize_y=True,
+        random_state=seed,
+    )
+
+
 def train_gpr(
     X_train: np.ndarray,
     y_train: np.ndarray,

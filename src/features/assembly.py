@@ -34,6 +34,54 @@ def _compute_charge_capacity(charge_cycle: dict[str, Any]) -> float:
     return float(cap[-1]) if len(cap) > 0 else np.nan
 
 
+_DATASET_DEFAULTS = {
+    "nasa_pcoe": {"rated_capacity": 2.0, "cutoff_voltage": 2.5},
+    "calce": {"rated_capacity": 1.1, "cutoff_voltage": 2.7},
+}
+
+
+def _dataset_default(cell_data: dict[str, Any], key: str) -> float:
+    """Return a dataset-appropriate default for missing cell metadata."""
+    dataset = cell_data.get("dataset", "unknown")
+    return _DATASET_DEFAULTS.get(dataset, {}).get(key, 2.0 if key == "rated_capacity" else 2.5)
+
+
+def _build_preceding_charge_map(ordered_cycles: list[dict[str, Any]]) -> dict[int, float]:
+    """Map each discharge cycle_number to its nearest PRECEDING charge capacity.
+
+    Coulombic efficiency pairs a discharge with the charge that directly
+    precedes it in time. Numbering conventions differ across datasets
+    (NASA numbers all cycle types globally; CALCE numbers the charge
+    before discharge k as k-1), so pairing is done by temporal order in
+    the cycle list rather than by cycle-number arithmetic.
+
+    Args:
+        ordered_cycles: Cell cycles sorted by cycle_number.
+
+    Returns:
+        Dict: discharge cycle_number -> preceding charge capacity (Ah),
+        NaN when no charge cycle precedes the discharge.
+    """
+    charge_caps: dict[int, float] = {}
+    for pos, cyc in enumerate(ordered_cycles):
+        if cyc["type"] != "charge":
+            continue
+        try:
+            charge_caps[pos] = _compute_charge_capacity(cyc)
+        except (ValueError, KeyError):
+            charge_caps[pos] = np.nan
+
+    mapping: dict[int, float] = {}
+    last_charge_cap = np.nan
+    for pos, cyc in enumerate(ordered_cycles):
+        if cyc["type"] == "charge":
+            if pos in charge_caps and np.isfinite(charge_caps[pos]):
+                last_charge_cap = charge_caps[pos]
+        elif cyc["type"] == "discharge":
+            mapping[cyc["cycle_number"]] = last_charge_cap
+    return mapping
+
+
 def build_feature_matrix(
     processed_cells: dict[str, dict],
     soh_df: pd.DataFrame,
@@ -49,7 +97,7 @@ def build_feature_matrix(
         processed_cells: Dictionary from the preprocessing pipeline
             (output of run_pipeline, loaded from processed_cells.pkl).
         soh_df: SOH labels DataFrame with columns cell_id, cycle_number, soh.
-        min_peak_prominence: Minimum prominence for ICA peak detection.
+        min_peak_prominence: Minimum prominence fraction for ICA peak detection.
 
     Returns:
         DataFrame with one row per (cell, discharge_cycle) and all features.
@@ -58,12 +106,10 @@ def build_feature_matrix(
 
     for cell_id, cell_data in processed_cells.items():
         discharge_cycles = [c for c in cell_data["cycles"] if c["type"] == "discharge"]
-        charge_cycles = [c for c in cell_data["cycles"] if c["type"] == "charge"]
         impedance_cycles = [c for c in cell_data["cycles"] if c["type"] == "impedance"]
 
-        charge_caps = {}
-        for cc in charge_cycles:
-            charge_caps[cc["cycle_number"]] = _compute_charge_capacity(cc)
+        ordered_cycles = sorted(cell_data["cycles"], key=lambda c: c["cycle_number"])
+        preceding_charge_cap = _build_preceding_charge_map(ordered_cycles)
 
         soh_cell = soh_df[soh_df["cell_id"] == cell_id].set_index("cycle_number")
 
@@ -84,8 +130,12 @@ def build_feature_matrix(
                 "dataset": cell_data.get("dataset", "unknown"),
                 "cycle_number": cn,
                 "soh": float(soh_arr[i]) if not np.isnan(soh_arr[i]) else np.nan,
-                "rated_capacity": cell_data.get("rated_capacity", 2.0),
-                "cutoff_voltage": cell_data.get("cutoff_voltage", 2.5),
+                "rated_capacity": cell_data.get(
+                    "rated_capacity", _dataset_default(cell_data, "rated_capacity")
+                ),
+                "cutoff_voltage": cell_data.get(
+                    "cutoff_voltage", _dataset_default(cell_data, "cutoff_voltage")
+                ),
                 "ambient_temperature": dc.get("ambient_temperature", np.nan),
             }
 
@@ -99,14 +149,13 @@ def build_feature_matrix(
             ir = estimate_ir_from_discharge(dc["voltage"], dc["current"], dc["time"])
             record["internal_resistance"] = ir
 
+            # EIS reference: only PAST impedance cycles (a future measurement
+            # would not exist at prediction time).
             nearest_eis = None
-            if impedance_cycles:
-                min_dist = float("inf")
-                for ic in impedance_cycles:
-                    dist = abs(ic["cycle_number"] - cn)
-                    if dist < min_dist:
-                        min_dist = dist
-                        nearest_eis = ic.get("eis")
+            past_eis = [ic for ic in impedance_cycles if ic["cycle_number"] <= cn]
+            if past_eis:
+                nearest = min(past_eis, key=lambda ic: cn - ic["cycle_number"])
+                nearest_eis = nearest.get("eis")
             eis_feats = extract_eis_features(nearest_eis)
             record.update(eis_feats)
 
@@ -117,8 +166,7 @@ def build_feature_matrix(
             record["mean_discharge_voltage"] = v_mean
 
             q_discharge = dc["capacity"] if dc["capacity"] is not None else np.nan
-            following_charge_cn = cn + 1
-            q_charge = charge_caps.get(following_charge_cn, np.nan)
+            q_charge = preceding_charge_cap.get(cn, np.nan)
             ce = compute_coulombic_efficiency(q_discharge, q_charge)
             record["coulombic_efficiency"] = ce
 
@@ -135,42 +183,48 @@ def build_feature_matrix(
     return df
 
 
-def select_features(
-    feature_df: pd.DataFrame,
+_METADATA_COLS = [
+    "cell_id",
+    "dataset",
+    "cycle_number",
+    "soh",
+    "rated_capacity",
+    "cutoff_voltage",
+    "ambient_temperature",
+    "discharge_capacity",
+]
+
+
+def fit_feature_selection(
+    train_df: pd.DataFrame,
     correlation_threshold: float = 0.95,
     top_k: int = 20,
-) -> tuple[pd.DataFrame, list[str]]:
-    """Apply feature selection: correlation filter + RF importance ranking.
+) -> list[str]:
+    """Fit the feature-selection pipeline on TRAINING data only.
 
-    Steps:
-        1. Identify numeric feature columns (exclude metadata).
-        2. Compute pairwise Pearson correlation matrix.
-        3. Remove one feature from each pair with |r| > threshold.
-        4. Train a Random Forest on remaining features, rank by importance.
-        5. Keep the top_k features.
+    Steps (all computed exclusively on ``train_df``):
+        1. Identify numeric candidate feature columns (exclude metadata).
+        2. Drop columns with >=30% NaN or near-zero variance.
+        3. Correlation filter: remove one feature from each pair with
+           |r| > threshold.
+        4. RandomForest importance ranking against SOH; keep top_k.
+
+    Calling this per LOOCV fold (on the training cells only) keeps
+    feature selection inside the cross-validation loop; fitting it once
+    on the full dataset would leak test-cell label information into the
+    chosen feature set and inflate reported metrics.
 
     Args:
-        feature_df: Full feature matrix from build_feature_matrix.
+        train_df: Feature matrix restricted to training cells.
         correlation_threshold: Maximum allowed pairwise correlation.
         top_k: Number of top features to keep.
 
     Returns:
-        Tuple of (selected_df, feature_names) where selected_df contains
-        only the selected feature columns plus metadata columns.
+        Ordered list of selected feature column names.
     """
-    metadata_cols = [
-        "cell_id",
-        "dataset",
-        "cycle_number",
-        "soh",
-        "rated_capacity",
-        "cutoff_voltage",
-        "ambient_temperature",
-        "discharge_capacity",
-    ]
-    feature_cols = [c for c in feature_df.columns if c not in metadata_cols]
+    feature_cols = [c for c in train_df.columns if c not in _METADATA_COLS]
 
-    numeric_df = feature_df[feature_cols].select_dtypes(include=[np.number])
+    numeric_df = train_df[feature_cols].select_dtypes(include=[np.number])
     feature_cols = list(numeric_df.columns)
 
     nan_fractions = numeric_df.isna().mean()
@@ -180,8 +234,8 @@ def select_features(
     valid_cols = [c for c in valid_cols if variances[c] > 1e-10]
 
     if len(valid_cols) < 2:
-        logger.warning("Fewer than 2 valid features, returning all")
-        return feature_df, feature_cols
+        logger.warning("Fewer than 2 valid features after screening")
+        return valid_cols
 
     corr_matrix = numeric_df[valid_cols].corr().abs()
     upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
@@ -202,13 +256,12 @@ def select_features(
         len(to_drop),
     )
 
-    complete_mask = feature_df[remaining_cols].notna().all(axis=1)
-    complete_df = feature_df.loc[complete_mask]
+    complete_mask = train_df[remaining_cols].notna().all(axis=1)
+    complete_df = train_df.loc[complete_mask]
 
-    if len(complete_df) < 10:
-        logger.warning("Too few complete rows for RF importance, skipping RF selection")
-        selected_cols = remaining_cols[:top_k]
-        return feature_df, selected_cols
+    if len(complete_df) < 10 or complete_df["soh"].nunique() < 2:
+        logger.warning("Too few complete rows for RF importance, keeping correlation-filtered set")
+        return remaining_cols[:top_k]
 
     X = complete_df[remaining_cols].values
     y = complete_df["soh"].values
@@ -223,6 +276,33 @@ def select_features(
     logger.info("RF importance: kept top %d features", len(selected_cols))
     logger.info("Top 5 features: %s", list(importances.index[:5]))
 
+    return selected_cols
+
+
+def select_features(
+    feature_df: pd.DataFrame,
+    correlation_threshold: float = 0.95,
+    top_k: int = 20,
+) -> tuple[pd.DataFrame, list[str]]:
+    """Apply feature selection over a full feature matrix.
+
+    NOTE: this convenience wrapper fits selection on every row of
+    ``feature_df`` and is appropriate only for exploratory analysis.
+    Model training must call :func:`fit_feature_selection` inside each
+    cross-validation fold instead.
+
+    Args:
+        feature_df: Full feature matrix from build_feature_matrix.
+        correlation_threshold: Maximum allowed pairwise correlation.
+        top_k: Number of top features to keep.
+
+    Returns:
+        Tuple of (selected_df, feature_names) where selected_df contains
+        only the selected feature columns plus metadata columns.
+    """
+    selected_cols = fit_feature_selection(
+        feature_df, correlation_threshold=correlation_threshold, top_k=top_k
+    )
     return feature_df, selected_cols
 
 
@@ -250,8 +330,9 @@ def save_feature_matrix(
     save_cols = metadata_cols + [c for c in selected_cols if c not in metadata_cols]
     save_df = feature_df[save_cols].copy()
 
-    suffix = f"_{dataset}" if dataset != "all" else ""
-    filepath = out_path / f"feature_matrix{suffix}.parquet"
+    # Every dataset gets an explicit suffix so files can never silently
+    # overwrite each other across runs.
+    filepath = out_path / f"feature_matrix_{dataset}.parquet"
     save_df.to_parquet(filepath, index=False)
     logger.info("Saved feature matrix: %s (%s)", filepath, save_df.shape)
 

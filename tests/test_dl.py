@@ -111,7 +111,7 @@ class TestModels:
 
     def test_transformer_forward(self, device):
         model = TransformerModel(
-            input_dim=3, d_model=32, n_heads=2, n_blocks=1, ffn_dim=64, dropout=0.1
+            input_dim=3, d_model=32, n_heads=2, n_blocks=1, dropout=0.1
         )
         x = torch.randn(4, 10, 3)
         out = model(x)

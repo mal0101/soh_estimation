@@ -16,10 +16,21 @@ logger = logging.getLogger(__name__)
 def init_tracking(tracking_uri: str = "mlruns", experiment_name: str = "soh_benchmark") -> None:
     """Initialize MLflow tracking with a local backend.
 
+    A relative sqlite URI (e.g., ``sqlite:///mlflow.db``) is anchored to
+    the project root so the same database is used regardless of the
+    caller's working directory.
+
     Args:
-        tracking_uri: Path to the MLflow backend store.
+        tracking_uri: Path or URI of the MLflow backend store.
         experiment_name: Name of the experiment to log runs under.
     """
+    if tracking_uri.startswith("sqlite:///") and not tracking_uri.startswith("sqlite:////"):
+        db_name = tracking_uri.replace("sqlite:///", "")
+        from src.utils.paths import project_root
+
+        abs_db = (project_root() / db_name).resolve()
+        abs_db.parent.mkdir(parents=True, exist_ok=True)
+        tracking_uri = f"sqlite:///{abs_db}"
     if tracking_uri.startswith("sqlite"):
         mlflow.set_tracking_uri(tracking_uri)
     else:

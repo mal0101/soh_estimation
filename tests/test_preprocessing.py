@@ -98,17 +98,88 @@ class TestValidateCycles:
         assert 20 in remaining_cns
 
     def test_keeps_late_low_soh(self):
+        """Genuine gradual degradation must never be filtered out."""
+        n_flat, n_fade = 25, 35
+        caps = [2.0] * n_flat + list(np.linspace(2.0, 1.2, n_fade)[1:])
         cell_data = {
             "q_initial": 2.0,
             "rated_capacity": 2.0,
             "cycles": [
-                {"cycle_number": 10, "capacity": 2.0, "type": "discharge"},
-                {"cycle_number": 50, "capacity": 1.5, "type": "discharge"},
-                {"cycle_number": 100, "capacity": 1.2, "type": "discharge"},
+                {"cycle_number": int(i + 1), "capacity": float(c), "type": "discharge"}
+                for i, c in enumerate(caps)
             ],
         }
-        result = validate_cycles(cell_data, q_initial=2.0, early_cycle_window=5)
-        assert len(result["cycles"]) == 3
+        result = validate_cycles(cell_data, q_initial=2.0)
+        assert len(result["cycles"]) == len(caps)
+
+    def test_discards_mid_life_interruption(self):
+        """An abrupt isolated drop anywhere in life is an interruption."""
+        n = 60
+        capacities = np.linspace(2.0, 1.85, n)
+        caps = [float(c) for c in capacities]
+        caps[30] = 0.3  # instrumentation pause mid-life
+        cell_data = {
+            "q_initial": 2.0,
+            "rated_capacity": 2.0,
+            "cycles": [
+                {"cycle_number": i + 1, "capacity": caps[i], "type": "discharge"}
+                for i in range(n)
+            ],
+        }
+        result = validate_cycles(cell_data, q_initial=2.0)
+        remaining_cns = [c["cycle_number"] for c in result["cycles"]]
+        assert 31 not in remaining_cns
+        assert len(remaining_cns) == n - 1
+
+    def test_discards_early_partial_beyond_window(self):
+        """A partial discharge just after the early window is still caught."""
+        n = 40
+        caps = [2.0 - 0.001 * i for i in range(n)]
+        caps[25] = 1.0  # 50% of neighbours -> interruption
+        cell_data = {
+            "q_initial": 2.0,
+            "rated_capacity": 2.0,
+            "cycles": [
+                {"cycle_number": i + 1, "capacity": float(caps[i]), "type": "discharge"}
+                for i in range(n)
+            ],
+        }
+        result = validate_cycles(cell_data, q_initial=2.0, early_cycle_window=20)
+        remaining_cns = [c["cycle_number"] for c in result["cycles"]]
+        assert 26 not in remaining_cns
+
+    def test_consecutive_interruptions_removed(self):
+        """Two adjacent interruption cycles are both flagged."""
+        n = 40
+        caps = [2.0 - 0.001 * i for i in range(n)]
+        caps[25] = 0.4
+        caps[26] = 0.5
+        cell_data = {
+            "q_initial": 2.0,
+            "rated_capacity": 2.0,
+            "cycles": [
+                {"cycle_number": i + 1, "capacity": float(caps[i]), "type": "discharge"}
+                for i in range(n)
+            ],
+        }
+        result = validate_cycles(cell_data, q_initial=2.0)
+        remaining_cns = [c["cycle_number"] for c in result["cycles"]]
+        assert 26 not in remaining_cns and 27 not in remaining_cns
+
+    def test_discard_count_reported(self):
+        n = 30
+        caps = [2.0 - 0.001 * i for i in range(n)]
+        caps[15] = 0.2
+        cell_data = {
+            "cell_id": "X",
+            "rated_capacity": 2.0,
+            "cycles": [
+                {"cycle_number": i + 1, "capacity": float(caps[i]), "type": "discharge"}
+                for i in range(n)
+            ],
+        }
+        result = validate_cycles(cell_data, q_initial=2.0)
+        assert result["n_cycles_discarded"] == 1
 
 
 class TestCalceLoader:

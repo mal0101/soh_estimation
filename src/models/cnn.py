@@ -2,6 +2,10 @@
 
 Three-layer Conv1D with Global Average Pooling that takes windowed
 per-cycle features and predicts the SOH of the final cycle.
+
+Uses the same leakage-safe two-stage protocol as the LSTM:
+inner-split Optuna selection, then fixed-epoch refit on the full
+training fold.
 """
 
 import logging
@@ -9,7 +13,6 @@ from typing import Any
 
 import numpy as np
 import optuna
-import pandas as pd
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -19,6 +22,15 @@ from src.models.dl_base import SOHDataset, evaluate, train_loop
 from src.utils.seeding import set_seed
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_PARAM_SPACE: dict[str, Any] = {
+    "filters_1": [16, 32, 64],
+    "filters_2": [32, 64, 128],
+    "filters_3": [64, 128, 256],
+    "kernel_size": [3, 5, 7],
+    "dropout": (0.1, 0.4),
+    "learning_rate": (1e-4, 1e-2),
+}
 
 
 class CNNModel(nn.Module):
@@ -78,116 +90,162 @@ class CNNModel(nn.Module):
         out = x.permute(0, 2, 1)
         out = self.conv_layers(out)
         out = self.pool(out).squeeze(-1)
-        return self.fc(out)
+        result: torch.Tensor = self.fc(out)
+        return result
 
 
-def train_cnn(
-    X_train: np.ndarray,
-    y_train: np.ndarray,
-    X_test: np.ndarray,
-    y_test: np.ndarray,
-    config: dict,
-    device: torch.device,
-    seed: int = 42,
-    n_trials: int = 30,
-) -> tuple[dict, dict[str, float]]:
-    """Train CNN with Optuna hyperparameter search.
+def build_cnn(input_dim: int, params: dict[str, Any], dense_units: int = 64) -> CNNModel:
+    """Construct an unfitted CNNModel from a params dict.
 
     Args:
-        X_train: Training features [n, window, features].
-        y_train: Training SOH targets.
-        X_test: Test features.
-        y_test: Test SOH targets.
-        config: DL config dict.
+        input_dim: Number of input features per step.
+        params: Hyperparameters incl. filters_{1,2,3}, kernel_size, dropout.
+        dense_units: Dense layer width (config default).
+
+    Returns:
+        Unfitted model instance.
+    """
+    return CNNModel(
+        input_dim,
+        [int(params["filters_1"]), int(params["filters_2"]), int(params["filters_3"])],
+        int(params["kernel_size"]),
+        dense_dim=int(dense_units),
+        dropout=float(params["dropout"]),
+    )
+
+
+def optimize_cnn(
+    train_df,
+    val_df,
+    feature_cols: list[str],
+    window_size: int,
+    train_cfg: dict,
+    device: torch.device,
+    seed: int = 42,
+    n_trials: int = 10,
+    param_space: dict | None = None,
+    dense_units: int = 64,
+) -> dict[str, Any]:
+    """Select CNN hyperparameters against an INNER validation split.
+
+    Args:
+        train_df: Inner-training DataFrame (cell-grouped, scaled features).
+        val_df: Inner-validation DataFrame (held-out inner cell).
+        feature_cols: Feature column names.
+        window_size: Sequence window length.
+        train_cfg: DL training config.
         device: Compute device.
         seed: Random seed.
         n_trials: Number of Optuna trials.
+        param_space: Search space override.
+        dense_units: Dense layer width (config default).
 
     Returns:
-        Tuple of (best_params, test_metrics).
+        Best hyperparameters plus 'best_epoch' and 'val_rmse'.
     """
-    input_dim = X_train.shape[2]
-    batch_size = config.get("batch_size", 64)
+    space = param_space or DEFAULT_PARAM_SPACE
+    batch_size = train_cfg.get("batch_size", 64)
+    input_dim = len(feature_cols)
+
+    def suggest(trial: optuna.Trial) -> dict[str, Any]:
+        return {
+            "filters_1": trial.suggest_categorical("filters_1", space["filters_1"]),
+            "filters_2": trial.suggest_categorical("filters_2", space["filters_2"]),
+            "filters_3": trial.suggest_categorical("filters_3", space["filters_3"]),
+            "kernel_size": trial.suggest_categorical("kernel_size", space["kernel_size"]),
+            "dropout": trial.suggest_float("dropout", *space["dropout"]),
+            "learning_rate": trial.suggest_float("learning_rate", *space["learning_rate"], log=True),
+        }
 
     def objective(trial: optuna.Trial) -> float:
-        f1 = trial.suggest_categorical("filters_1", [16, 32, 64])
-        f2 = trial.suggest_categorical("filters_2", [32, 64, 128])
-        f3 = trial.suggest_categorical("filters_3", [64, 128, 256])
-        ks = trial.suggest_categorical("kernel_size", [3, 5, 7])
-        dropout = trial.suggest_float("dropout", 0.1, 0.4)
-        lr = trial.suggest_float("learning_rate", 1e-4, 1e-2, log=True)
-
-        model = CNNModel(input_dim, [f1, f2, f3], ks, dense_dim=64, dropout=dropout)
-
+        params = suggest(trial)
         set_seed(seed)
-        train_dataset = SOHDataset(
-            _arrays_to_df(X_train, y_train), list(range(X_train.shape[2])), X_train.shape[1]
-        )
-        val_dataset = SOHDataset(
-            _arrays_to_df(X_test, y_test), list(range(X_test.shape[2])), X_test.shape[1]
-        )
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=batch_size)
+        model = build_cnn(input_dim, params, dense_units=dense_units)
+        train_ds = SOHDataset(train_df, feature_cols, window_size)
+        val_ds = SOHDataset(val_df, feature_cols, window_size)
+        if len(train_ds) == 0 or len(val_ds) == 0:
+            raise optuna.TrialPruned("empty sequence dataset")
+        train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+        val_loader = DataLoader(val_ds, batch_size=batch_size)
 
-        trial_config = {**config, "learning_rate": lr}
-        train_loop(model, train_loader, val_loader, trial_config, device, seed)
+        trial_config = {**train_cfg, "learning_rate": params["learning_rate"]}
+        history = train_loop(model, train_loader, val_loader, trial_config, device, seed)
+        trial.set_user_attr("best_epoch", int(history["best_epoch"]))
 
         y_true, y_pred = evaluate(model, val_loader, device)
-        rmse_val = float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
-        return rmse_val
+        return float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
 
     study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=seed))
     study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
 
-    best: dict[str, Any] = study.best_params
-    logger.info("CNN best params: %s (RMSE=%.6f)", best, study.best_value)
-
-    model = CNNModel(
-        input_dim,
-        [best["filters_1"], best["filters_2"], best["filters_3"]],
-        best["kernel_size"],
-        dense_dim=64,
-        dropout=best["dropout"],
-    )
-    set_seed(seed)
-    train_dataset = SOHDataset(
-        _arrays_to_df(X_train, y_train), list(range(X_train.shape[2])), X_train.shape[1]
-    )
-    test_dataset = SOHDataset(
-        _arrays_to_df(X_test, y_test), list(range(X_test.shape[2])), X_test.shape[1]
-    )
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size)
-
-    final_config = {**config, "learning_rate": best["learning_rate"]}
-    train_loop(model, train_loader, test_loader, final_config, device, seed)
-
-    y_true, y_pred = evaluate(model, test_loader, device)
-    metrics = compute_all_metrics(y_true, y_pred)
-    logger.info("CNN test metrics: %s", metrics)
-    return best, metrics
+    best = dict(study.best_params)
+    best["best_epoch"] = int(study.best_trial.user_attrs.get("best_epoch", 0))
+    best["val_rmse"] = float(study.best_value)
+    logger.info("CNN best params: %s (val RMSE=%.6f)", best, best["val_rmse"])
+    return best
 
 
-def _arrays_to_df(X: np.ndarray, y: np.ndarray) -> pd.DataFrame:
-    """Convert windowed arrays to a flat DataFrame for SOHDataset.
+def train_cnn_final(
+    full_train_df,
+    feature_cols: list[str],
+    window_size: int,
+    train_cfg: dict,
+    device: torch.device,
+    seed: int,
+    params: dict[str, Any],
+    dense_units: int = 64,
+) -> tuple[CNNModel, dict]:
+    """Fit the final CNN on the full training fold for fixed epochs.
 
     Args:
-        X: Feature array [n_samples, window, n_features].
-        y: Target array [n_samples].
+        full_train_df: Full fold-training DataFrame.
+        feature_cols: Feature column names.
+        window_size: Sequence window length.
+        train_cfg: DL training config.
+        device: Compute device.
+        seed: Random seed.
+        params: Selected hyperparameters.
+        dense_units: Dense layer width (config default).
 
     Returns:
-        DataFrame with synthetic cell_id, cycle_number, soh, and feature columns.
+        Tuple of (trained model, history dict).
     """
-    n_samples = len(y)
-    n_features = X.shape[2]
-    records = []
-    for i in range(n_samples):
-        row = {
-            "cell_id": "train",
-            "cycle_number": i,
-            "soh": float(y[i]),
-        }
-        for j in range(n_features):
-            row[j] = float(X[i, -1, j])
-        records.append(row)
-    return pd.DataFrame(records)
+    batch_size = train_cfg.get("batch_size", 64)
+    set_seed(seed)
+    model = build_cnn(len(feature_cols), params, dense_units=dense_units)
+
+    train_ds = SOHDataset(full_train_df, feature_cols, window_size)
+    if len(train_ds) == 0:
+        raise ValueError("No trainable sequences in the full training fold")
+    loader = DataLoader(train_ds, batch_size=batch_size, shuffle=False)
+    shuffle_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+
+    final_config = {
+        **train_cfg,
+        "learning_rate": params["learning_rate"],
+        "fixed_epochs": max(int(params.get("best_epoch", 0)) + 1, 5),
+    }
+    history = train_loop(model, shuffle_loader, loader, final_config, device, seed)
+    return model, history
+
+
+def evaluate_cnn(
+    model: CNNModel,
+    test_df,
+    feature_cols: list[str],
+    window_size: int,
+    batch_size: int,
+    device: torch.device,
+) -> tuple[np.ndarray, np.ndarray, dict]:
+    """Evaluate a trained CNN on the held-out test cell.
+
+    Returns:
+        Tuple of (y_true, y_pred, metrics).
+    """
+    test_ds = SOHDataset(test_df, feature_cols, window_size)
+    if len(test_ds) == 0:
+        raise ValueError("No test sequences for this fold")
+    test_loader = DataLoader(test_ds, batch_size=batch_size)
+    y_true, y_pred = evaluate(model, test_loader, device)
+    metrics = compute_all_metrics(y_true, y_pred)
+    return y_true, y_pred, metrics

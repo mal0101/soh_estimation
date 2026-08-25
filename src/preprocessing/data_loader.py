@@ -251,8 +251,14 @@ def _parse_calce_cycle(cycle_df: Any, cycle_number: int, cycle_type: str) -> dic
         cycle_type: 'charge' or 'discharge'.
 
     Returns:
-        Parsed cycle dictionary, or None if the cycle has invalid data.
+        Parsed cycle dictionary, or None if the cycle has invalid data
+        or is missing required columns.
     """
+    required = ("Voltage(V)", "Current(A)", "Test_Time(s)")
+    missing = [c for c in required if c not in cycle_df.columns]
+    if missing:
+        logger.warning("CALCE cycle %d missing columns %s, skipping", cycle_number, missing)
+        return None
 
     voltage = cycle_df["Voltage(V)"].values.astype(np.float64)
     current = cycle_df["Current(A)"].values.astype(np.float64)
@@ -261,9 +267,31 @@ def _parse_calce_cycle(cycle_df: Any, cycle_number: int, cycle_type: str) -> dic
     if voltage.size == 0 or np.all(np.isnan(voltage)):
         return None
 
+    finite_time = np.isfinite(time_arr)
+    if not np.any(finite_time):
+        return None
+    if not bool(np.all(finite_time)):
+        # Keep only samples with valid timestamps; a NaN timestamp would
+        # corrupt the capacity integration downstream.
+        logger.warning(
+            "CALCE cycle %d has %d non-finite timestamps, dropping those samples",
+            cycle_number,
+            int((~finite_time).sum()),
+        )
+        keep = finite_time & np.isfinite(voltage) & np.isfinite(current)
+        voltage, current, time_arr = voltage[keep], current[keep], time_arr[keep]
+        if voltage.size < 2:
+            return None
+
     if cycle_type == "discharge":
+        if "Discharge_Capacity(Ah)" not in cycle_df.columns:
+            logger.warning("CALCE cycle %d missing Discharge_Capacity column", cycle_number)
+            return None
         cum_cap = cycle_df["Discharge_Capacity(Ah)"].values.astype(np.float64)
-        per_cycle_cap = float(np.nanmax(cum_cap) - np.nanmin(cum_cap))
+        finite_cap = cum_cap[np.isfinite(cum_cap)]
+        if finite_cap.size == 0:
+            return None
+        per_cycle_cap = float(np.nanmax(finite_cap) - np.nanmin(finite_cap))
         if per_cycle_cap <= 0 or np.isnan(per_cycle_cap):
             return None
         capacity = per_cycle_cap

@@ -1,7 +1,10 @@
 """Phase-based error analysis for SOH estimation.
 
 Breaks down prediction errors into SOH degradation phases: early
-(SOH 0.90–1.0), mid (0.80–0.90), and end (<0.80).
+(SOH 0.90–1.01, inclusive of the 1.0 cap), mid (0.80–0.90), and
+end (<0.80). Phases are half-open [min, max) EXCEPT the numerically
+largest phase, which is closed on both ends so samples sitting exactly
+at the SOH cap are not silently excluded.
 """
 
 import logging
@@ -13,7 +16,7 @@ from src.evaluation.metrics import compute_all_metrics
 logger = logging.getLogger(__name__)
 
 PHASE_RANGES = {
-    "early": (0.90, 1.0),
+    "early": (0.90, 1.01),
     "mid": (0.80, 0.90),
     "end": (0.0, 0.80),
 }
@@ -40,9 +43,16 @@ def phase_rmse(
     if phase_ranges is None:
         phase_ranges = PHASE_RANGES
 
+    # The topmost phase includes its upper bound so capped samples
+    # (SOH == soh_cap == 1.0) fall inside it.
+    upper_bound = max(mx for _, mx in phase_ranges.values())
+
     results = {}
     for phase_name, (min_soh, max_soh) in phase_ranges.items():
-        mask = (soh >= min_soh) & (soh < max_soh)
+        if max_soh >= upper_bound:
+            mask = (soh >= min_soh) & (soh <= max_soh)
+        else:
+            mask = (soh >= min_soh) & (soh < max_soh)
         n = int(mask.sum())
         if n == 0:
             results[phase_name] = {"rmse": np.nan, "mae": np.nan, "n_samples": 0}

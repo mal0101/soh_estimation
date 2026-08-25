@@ -2,6 +2,10 @@
 
 Encoder-only Transformer that takes windowed per-cycle features and
 predicts the SOH of the final cycle in the window.
+
+Uses the same leakage-safe two-stage protocol as the LSTM/CNN:
+inner-split Optuna selection, then fixed-epoch refit on the full
+training fold.
 """
 
 import logging
@@ -10,7 +14,6 @@ from typing import Any
 
 import numpy as np
 import optuna
-import pandas as pd
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -21,11 +24,19 @@ from src.utils.seeding import set_seed
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_PARAM_SPACE: dict[str, Any] = {
+    "d_model": [32, 64],
+    "n_heads": [2, 4],
+    "n_encoder_blocks": [1, 2, 3],
+    "dropout": (0.1, 0.3),
+    "learning_rate": (1e-4, 1e-2),
+}
+
 
 class PositionalEncoding(nn.Module):
     """Sinusoidal positional encoding for transformer input."""
 
-    def __init__(self, d_model: int, max_len: int = 50) -> None:
+    def __init__(self, d_model: int, max_len: int = 200) -> None:
         """Initialize positional encoding.
 
         Args:
@@ -49,7 +60,8 @@ class PositionalEncoding(nn.Module):
         Returns:
             Encoded tensor of same shape.
         """
-        return x + self.pe[:, : x.size(1)]
+        encoded: torch.Tensor = x + self.pe[:, : x.size(1)]
+        return encoded
 
 
 class TransformerModel(nn.Module):
@@ -59,6 +71,9 @@ class TransformerModel(nn.Module):
         Linear(input_dim → d_model) + PositionalEncoding
         → N × TransformerEncoderLayer → Global Average Pooling
         → Linear(d_model → 1)
+
+    The FFN width is fixed at ``2 * d_model`` to keep the parameter
+    budget proportional to the embedding size.
     """
 
     def __init__(
@@ -67,9 +82,9 @@ class TransformerModel(nn.Module):
         d_model: int,
         n_heads: int,
         n_blocks: int,
-        ffn_dim: int,
         dropout: float,
-        max_seq_len: int = 50,
+        ffn_mult: int = 2,
+        max_seq_len: int = 200,
     ) -> None:
         """Initialize the Transformer model.
 
@@ -78,8 +93,8 @@ class TransformerModel(nn.Module):
             d_model: Internal embedding dimension.
             n_heads: Number of attention heads.
             n_blocks: Number of encoder blocks.
-            ffn_dim: Feed-forward network hidden dimension.
             dropout: Dropout probability.
+            ffn_mult: FFN hidden dim = ffn_mult * d_model.
             max_seq_len: Maximum sequence length for positional encoding.
         """
         super().__init__()
@@ -88,7 +103,7 @@ class TransformerModel(nn.Module):
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=d_model,
             nhead=n_heads,
-            dim_feedforward=ffn_dim,
+            dim_feedforward=ffn_mult * d_model,
             dropout=dropout,
             batch_first=True,
         )
@@ -104,122 +119,165 @@ class TransformerModel(nn.Module):
         Returns:
             Predictions of shape [batch, 1].
         """
-        out = self.input_proj(x)
-        out = self.pos_encoding(out)
-        out = self.encoder(out)
-        out = out.mean(dim=1)
-        return self.fc(out)
+        projected: torch.Tensor = self.input_proj(x)
+        encoded: torch.Tensor = self.pos_encoding(projected)
+        ctx: torch.Tensor = self.encoder(encoded)
+        pooled = ctx.mean(dim=1)
+        result: torch.Tensor = self.fc(pooled)
+        return result
 
 
-def train_transformer(
-    X_train: np.ndarray,
-    y_train: np.ndarray,
-    X_test: np.ndarray,
-    y_test: np.ndarray,
-    config: dict,
-    device: torch.device,
-    seed: int = 42,
-    n_trials: int = 30,
-) -> tuple[dict, dict[str, float]]:
-    """Train Transformer with Optuna hyperparameter search.
+def build_transformer(input_dim: int, params: dict[str, Any]) -> TransformerModel:
+    """Construct an unfitted TransformerModel from a params dict.
 
     Args:
-        X_train: Training features [n, window, features].
-        y_train: Training SOH targets.
-        X_test: Test features.
-        y_test: Test SOH targets.
-        config: DL config dict.
+        input_dim: Number of input features per step.
+        params: Hyperparameters (d_model, n_heads, n_encoder_blocks, dropout).
+
+    Returns:
+        Unfitted model instance with max_seq_len matched to the window.
+    """
+    return TransformerModel(
+        input_dim,
+        int(params["d_model"]),
+        int(params["n_heads"]),
+        int(params["n_encoder_blocks"]),
+        float(params["dropout"]),
+    )
+
+
+def optimize_transformer(
+    train_df,
+    val_df,
+    feature_cols: list[str],
+    window_size: int,
+    train_cfg: dict,
+    device: torch.device,
+    seed: int = 42,
+    n_trials: int = 10,
+    param_space: dict | None = None,
+) -> dict[str, Any]:
+    """Select Transformer hyperparameters against an INNER validation split.
+
+    Args:
+        train_df: Inner-training DataFrame (cell-grouped, scaled features).
+        val_df: Inner-validation DataFrame (held-out inner cell).
+        feature_cols: Feature column names.
+        window_size: Sequence window length.
+        train_cfg: DL training config.
         device: Compute device.
         seed: Random seed.
         n_trials: Number of Optuna trials.
+        param_space: Search space override.
 
     Returns:
-        Tuple of (best_params, test_metrics).
+        Best hyperparameters plus 'best_epoch' and 'val_rmse'.
     """
-    input_dim = X_train.shape[2]
-    batch_size = config.get("batch_size", 64)
+    space = param_space or DEFAULT_PARAM_SPACE
+    batch_size = train_cfg.get("batch_size", 64)
+    input_dim = len(feature_cols)
+
+    def suggest(trial: optuna.Trial) -> dict[str, Any]:
+        return {
+            "d_model": trial.suggest_categorical("d_model", space["d_model"]),
+            "n_heads": trial.suggest_categorical("n_heads", space["n_heads"]),
+            "n_encoder_blocks": trial.suggest_categorical(
+                "n_encoder_blocks", space["n_encoder_blocks"]
+            ),
+            "dropout": trial.suggest_float("dropout", *space["dropout"]),
+            "learning_rate": trial.suggest_float("learning_rate", *space["learning_rate"], log=True),
+        }
 
     def objective(trial: optuna.Trial) -> float:
-        d_model = trial.suggest_categorical("d_model", [32, 64])
-        n_heads = trial.suggest_categorical("n_heads", [2, 4])
-        n_blocks = trial.suggest_categorical("n_encoder_blocks", [1, 2, 3])
-        dropout = trial.suggest_float("dropout", 0.1, 0.3)
-        lr = trial.suggest_float("learning_rate", 1e-4, 1e-2, log=True)
-
-        model = TransformerModel(
-            input_dim, d_model, n_heads, n_blocks, ffn_dim=d_model * 2, dropout=dropout
-        )
-
+        params = suggest(trial)
         set_seed(seed)
-        train_dataset = SOHDataset(
-            _arrays_to_df(X_train, y_train), list(range(X_train.shape[2])), X_train.shape[1]
-        )
-        val_dataset = SOHDataset(
-            _arrays_to_df(X_test, y_test), list(range(X_test.shape[2])), X_test.shape[1]
-        )
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=batch_size)
+        model = build_transformer(input_dim, params)
+        # Positional encoding must cover the configured window length.
+        model.pos_encoding = PositionalEncoding(int(params["d_model"]), max_len=max(window_size * 2, 64))
+        train_ds = SOHDataset(train_df, feature_cols, window_size)
+        val_ds = SOHDataset(val_df, feature_cols, window_size)
+        if len(train_ds) == 0 or len(val_ds) == 0:
+            raise optuna.TrialPruned("empty sequence dataset")
+        train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+        val_loader = DataLoader(val_ds, batch_size=batch_size)
 
-        trial_config = {**config, "learning_rate": lr}
-        train_loop(model, train_loader, val_loader, trial_config, device, seed)
+        trial_config = {**train_cfg, "learning_rate": params["learning_rate"]}
+        history = train_loop(model, train_loader, val_loader, trial_config, device, seed)
+        trial.set_user_attr("best_epoch", int(history["best_epoch"]))
 
         y_true, y_pred = evaluate(model, val_loader, device)
-        rmse_val = float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
-        return rmse_val
+        return float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
 
     study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=seed))
     study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
 
-    best: dict[str, Any] = study.best_params
-    logger.info("Transformer best params: %s (RMSE=%.6f)", best, study.best_value)
-
-    model = TransformerModel(
-        input_dim,
-        best["d_model"],
-        best["n_heads"],
-        best["n_encoder_blocks"],
-        ffn_dim=best["d_model"] * 2,
-        dropout=best["dropout"],
-    )
-    set_seed(seed)
-    train_dataset = SOHDataset(
-        _arrays_to_df(X_train, y_train), list(range(X_train.shape[2])), X_train.shape[1]
-    )
-    test_dataset = SOHDataset(
-        _arrays_to_df(X_test, y_test), list(range(X_test.shape[2])), X_test.shape[1]
-    )
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size)
-
-    final_config = {**config, "learning_rate": best["learning_rate"]}
-    train_loop(model, train_loader, test_loader, final_config, device, seed)
-
-    y_true, y_pred = evaluate(model, test_loader, device)
-    metrics = compute_all_metrics(y_true, y_pred)
-    logger.info("Transformer test metrics: %s", metrics)
-    return best, metrics
+    best = dict(study.best_params)
+    best["best_epoch"] = int(study.best_trial.user_attrs.get("best_epoch", 0))
+    best["val_rmse"] = float(study.best_value)
+    logger.info("Transformer best params: %s (val RMSE=%.6f)", best, best["val_rmse"])
+    return best
 
 
-def _arrays_to_df(X: np.ndarray, y: np.ndarray) -> pd.DataFrame:
-    """Convert windowed arrays to a flat DataFrame for SOHDataset.
+def train_transformer_final(
+    full_train_df,
+    feature_cols: list[str],
+    window_size: int,
+    train_cfg: dict,
+    device: torch.device,
+    seed: int,
+    params: dict[str, Any],
+) -> tuple[TransformerModel, dict]:
+    """Fit the final Transformer on the full training fold for fixed epochs.
 
     Args:
-        X: Feature array [n_samples, window, n_features].
-        y: Target array [n_samples].
+        full_train_df: Full fold-training DataFrame.
+        feature_cols: Feature column names.
+        window_size: Sequence window length.
+        train_cfg: DL training config.
+        device: Compute device.
+        seed: Random seed.
+        params: Selected hyperparameters.
 
     Returns:
-        DataFrame with synthetic cell_id, cycle_number, soh, and feature columns.
+        Tuple of (trained model, history dict).
     """
-    n_samples = len(y)
-    n_features = X.shape[2]
-    records = []
-    for i in range(n_samples):
-        row = {
-            "cell_id": "train",
-            "cycle_number": i,
-            "soh": float(y[i]),
-        }
-        for j in range(n_features):
-            row[j] = float(X[i, -1, j])
-        records.append(row)
-    return pd.DataFrame(records)
+    batch_size = train_cfg.get("batch_size", 64)
+    set_seed(seed)
+    model = build_transformer(len(feature_cols), params)
+    model.pos_encoding = PositionalEncoding(int(params["d_model"]), max_len=max(window_size * 2, 64))
+
+    train_ds = SOHDataset(full_train_df, feature_cols, window_size)
+    if len(train_ds) == 0:
+        raise ValueError("No trainable sequences in the full training fold")
+    loader = DataLoader(train_ds, batch_size=batch_size, shuffle=False)
+    shuffle_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+
+    final_config = {
+        **train_cfg,
+        "learning_rate": params["learning_rate"],
+        "fixed_epochs": max(int(params.get("best_epoch", 0)) + 1, 5),
+    }
+    history = train_loop(model, shuffle_loader, loader, final_config, device, seed)
+    return model, history
+
+
+def evaluate_transformer(
+    model: TransformerModel,
+    test_df,
+    feature_cols: list[str],
+    window_size: int,
+    batch_size: int,
+    device: torch.device,
+) -> tuple[np.ndarray, np.ndarray, dict]:
+    """Evaluate a trained Transformer on the held-out test cell.
+
+    Returns:
+        Tuple of (y_true, y_pred, metrics).
+    """
+    test_ds = SOHDataset(test_df, feature_cols, window_size)
+    if len(test_ds) == 0:
+        raise ValueError("No test sequences for this fold")
+    test_loader = DataLoader(test_ds, batch_size=batch_size)
+    y_true, y_pred = evaluate(model, test_loader, device)
+    metrics = compute_all_metrics(y_true, y_pred)
+    return y_true, y_pred, metrics

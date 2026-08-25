@@ -37,7 +37,11 @@ def estimate_ir_from_discharge(
     delta_v = abs(v_before - v_after)
     delta_i = abs(i_after - i_before)
 
-    if delta_i < 1e-6:
+    # Require a genuine current step: the guard is RELATIVE to the
+    # signal level so that cycles already under load at t=0 (common in
+    # CALCE session files) yield NaN instead of deltaV/~0 garbage.
+    signal_level = float(np.max(np.abs(current)))
+    if delta_i < max(1e-6, 0.05 * signal_level):
         return np.nan
 
     return delta_v / delta_i

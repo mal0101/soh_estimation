@@ -43,6 +43,10 @@ def preprocess_cycle(
     Returns:
         Copy of cycle dict with added fields: capacity_grid,
         voltage_filtered, voltage_resampled.
+
+    Raises:
+        ValueError: If the cycle contains non-finite timestamps or a
+            non-monotonic time axis (propagated from capacity/resampling).
     """
     result = dict(cycle)
 
@@ -78,6 +82,11 @@ def preprocess_cell(
     polyorder: int = 3,
     n_points: int = 1000,
     min_discharge_fraction: float = 0.90,
+    early_cycle_window: int = 20,
+    interruption_fraction: float = 0.75,
+    interruption_window: int = 5,
+    run_drop_fraction: float = 0.70,
+    run_entry_fraction: float = 0.75,
 ) -> dict[str, Any]:
     """Apply the full preprocessing pipeline to a single cell.
 
@@ -91,25 +100,52 @@ def preprocess_cell(
         n_points: Number of points in the resampled grid.
         min_discharge_fraction: Minimum fraction of q_initial for
             early discharge cycles to be considered complete.
+        early_cycle_window: Cycle-number bound for the early-cycle rule.
+        interruption_fraction: Fraction of local-median capacity below
+            which any discharge is flagged as an interruption.
+        interruption_window: Neighbourhood size for the local median.
+        run_drop_fraction: Mean-depth threshold for anomalous-run removal.
+        run_entry_fraction: Run-membership threshold (fraction of q_initial).
 
     Returns:
         Cell dict with preprocessed cycles (added: capacity_grid,
-        voltage_filtered, voltage_resampled, cumulative_capacity).
+        voltage_filtered, voltage_resampled, cumulative_capacity) and
+        the reference q_initial stored under key "q_initial".
     """
-    filtered = validate_cycles(cell_data, q_initial, min_discharge_fraction=min_discharge_fraction)
+    filtered = validate_cycles(
+        cell_data,
+        q_initial,
+        min_discharge_fraction=min_discharge_fraction,
+        early_cycle_window=early_cycle_window,
+        interruption_fraction=interruption_fraction,
+        interruption_window=interruption_window,
+        run_drop_fraction=run_drop_fraction,
+        run_entry_fraction=run_entry_fraction,
+    )
 
     preprocessed_cycles = []
     for cycle in filtered["cycles"]:
-        processed = preprocess_cycle(
-            cycle,
-            window_length=window_length,
-            polyorder=polyorder,
-            n_points=n_points,
-        )
+        try:
+            processed = preprocess_cycle(
+                cycle,
+                window_length=window_length,
+                polyorder=polyorder,
+                n_points=n_points,
+            )
+        except ValueError as e:
+            logger.warning(
+                "%s: skipping malformed %s cycle %d (%s)",
+                filtered.get("cell_id", "unknown"),
+                cycle["type"],
+                cycle.get("cycle_number", -1),
+                e,
+            )
+            continue
         preprocessed_cycles.append(processed)
 
     result = dict(filtered)
     result["cycles"] = preprocessed_cycles
+    result["q_initial"] = float(q_initial)
     return result
 
 
@@ -118,6 +154,11 @@ def run_pipeline(config_path: str = "config/default.yaml", dataset: str = "all")
 
     Loads all cells, preprocesses them, computes SOH labels, and saves
     the processed data and labels to disk.
+
+    Q_initial is computed once per cell on the RAW cycles with a robust
+    median reduction; the same robust estimator is applied to the
+    FILTERED cells when producing labels, so the filtering threshold and
+    the label reference cannot diverge due to outlier poisoning.
 
     Args:
         config_path: Path to the YAML configuration file.
@@ -134,7 +175,20 @@ def run_pipeline(config_path: str = "config/default.yaml", dataset: str = "all")
     polyorder = config.get("preprocessing.savgol.polynomial_order", 3)
     n_points = config.get("preprocessing.resampling.n_points", 1000)
     min_frac = config.get("preprocessing.cycle_segmentation.min_discharge_fraction", 0.90)
+    early_cycle_window = config.get("preprocessing.cycle_segmentation.early_cycle_window", 20)
+    interruption_fraction = config.get(
+        "preprocessing.cycle_segmentation.interruption_fraction", 0.75
+    )
+    interruption_window = config.get("preprocessing.cycle_segmentation.interruption_window", 5)
+    run_drop_fraction = config.get(
+        "preprocessing.cycle_segmentation.run_drop_fraction", 0.70
+    )
+    run_entry_fraction = config.get(
+        "preprocessing.cycle_segmentation.run_entry_fraction", 0.75
+    )
     q_initial_cycles = tuple(config.get("preprocessing.soh.q_initial_cycles", [3, 10]))
+    soh_cap = config.get("preprocessing.soh.soh_cap", 1.0)
+    q_reduction = config.get("preprocessing.soh.q_reduction", "median")
 
     all_cells = {}
 
@@ -157,7 +211,7 @@ def run_pipeline(config_path: str = "config/default.yaml", dataset: str = "all")
     processed_cells = {}
     for cell_id, cell_data in all_cells.items():
         try:
-            q_initial = compute_q_initial(cell_data, q_initial_cycles)
+            q_initial = compute_q_initial(cell_data, q_initial_cycles, reduction=q_reduction)
         except ValueError as e:
             logger.error("Skipping %s: %s", cell_id, e)
             continue
@@ -169,19 +223,26 @@ def run_pipeline(config_path: str = "config/default.yaml", dataset: str = "all")
             polyorder=polyorder,
             n_points=n_points,
             min_discharge_fraction=min_frac,
+            early_cycle_window=early_cycle_window,
+            interruption_fraction=interruption_fraction,
+            interruption_window=interruption_window,
+            run_drop_fraction=run_drop_fraction,
+            run_entry_fraction=run_entry_fraction,
         )
         processed_cells[cell_id] = processed
 
         n_discharge = sum(1 for c in processed["cycles"] if c["type"] == "discharge")
         logger.info("  %s: %d discharge cycles preprocessed", cell_id, n_discharge)
 
-    suffix = f"_{dataset}" if dataset != "all" else ""
+    suffix = f"_{dataset}"
     pkl_path = processed_dir / f"processed_cells{suffix}.pkl"
     with open(pkl_path, "wb") as f:
         pickle.dump(processed_cells, f)
     logger.info("Saved processed cells to %s", pkl_path)
 
-    soh_df = compute_soh_for_all_cells(processed_cells, q_initial_cycles)
+    soh_df = compute_soh_for_all_cells(
+        processed_cells, q_initial_cycles, cap=soh_cap, reduction=q_reduction
+    )
     soh_path = processed_dir / f"soh_labels{suffix}.parquet"
     soh_df.to_parquet(soh_path, index=False)
     logger.info("Saved SOH labels to %s (%d rows)", soh_path, len(soh_df))
@@ -200,17 +261,20 @@ def _log_pipeline_summary(processed_cells: dict[str, dict]) -> None:
         impedance = sum(1 for c in cell_data["cycles"] if c["type"] == "impedance")
         has_resampled = any("voltage_resampled" in c for c in cell_data["cycles"])
         logger.info(
-            "  %s: %d charge, %d discharge, %d impedance (resampled=%s)",
+            "  %s: %d charge, %d discharge, %d impedance "
+            "(resampled=%s, q_initial=%.4f Ah, discarded=%d)",
             cell_id,
             charge,
             discharge,
             impedance,
             has_resampled,
+            cell_data.get("q_initial", float("nan")),
+            cell_data.get("n_cycles_discarded", 0),
         )
     logger.info("=" * 70)
 
 
-if __name__ == "__main__":
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the preprocessing pipeline")
     parser.add_argument(
         "--config",
@@ -225,27 +289,15 @@ if __name__ == "__main__":
         default="all",
         help="Dataset to process: nasa, calce, or all (default: all)",
     )
-    args = parser.parse_args()
-    logging.basicConfig(level=logging.INFO, format="%(name)s - %(message)s")
-    run_pipeline(args.config, dataset=args.dataset)
+    return parser
 
 
 def main() -> None:
     """CLI entry point for the preprocessing pipeline."""
-    parser = argparse.ArgumentParser(description="Run the preprocessing pipeline")
-    parser.add_argument(
-        "--config",
-        type=str,
-        default="config/default.yaml",
-        help="Path to configuration YAML file",
-    )
-    parser.add_argument(
-        "--dataset",
-        type=str,
-        choices=["nasa", "calce", "all"],
-        default="all",
-        help="Dataset to process: nasa, calce, or all (default: all)",
-    )
-    args = parser.parse_args()
+    args = _build_parser().parse_args()
     logging.basicConfig(level=logging.INFO, format="%(name)s - %(message)s")
     run_pipeline(args.config, dataset=args.dataset)
+
+
+if __name__ == "__main__":
+    main()

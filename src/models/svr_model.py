@@ -1,10 +1,14 @@
 """Support Vector Regression model with Optuna hyperparameter tuning.
 
-Wraps sklearn SVR with Optuna search and MLflow logging.
+Separation of concerns:
+    - ``optimize_svr`` selects hyperparameters using an INNER validation
+      split (never the outer LOOCV test cell).
+    - ``build_svr`` constructs a fresh model from chosen parameters so the
+      orchestrator can refit on the FULL training fold.
 """
 
 import logging
-from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 import optuna
@@ -12,93 +16,113 @@ from sklearn.svm import SVR
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_PARAM_SPACE: dict[str, Any] = {
+    "C": (0.01, 1000),
+    "epsilon": (0.001, 0.1),
+    "gamma": ["scale", "auto", 0.0001, 1.0],
+}
 
-def create_objective(
+
+def build_svr(params: dict[str, Any]) -> SVR:
+    """Construct an unfitted SVR from a params dict.
+
+    Args:
+        params: Hyperparameters (C, epsilon, gamma).
+
+    Returns:
+        Unfitted model instance.
+    """
+    gamma = params["gamma"]
+    if isinstance(gamma, str) and gamma not in ("scale", "auto"):
+        gamma = float(gamma)
+    return SVR(kernel="rbf", C=float(params["C"]), epsilon=float(params["epsilon"]), gamma=gamma)
+
+
+def optimize_svr(
     X_train: np.ndarray,
     y_train: np.ndarray,
     X_val: np.ndarray,
     y_val: np.ndarray,
-    param_space: dict,
-) -> Callable[[optuna.Trial], float]:
-    """Create an Optuna objective function for SVR.
+    n_trials: int = 50,
+    param_space: dict | None = None,
+    seed: int = 42,
+) -> dict[str, Any]:
+    """Select SVR hyperparameters via Optuna against the validation split.
 
     Args:
-        X_train: Training features.
-        y_train: Training targets.
-        X_val: Validation features.
-        y_val: Validation targets.
-        param_space: Parameter space dict from config.
+        X_train: Inner-training features.
+        y_train: Inner-training targets.
+        X_val: Inner-validation features. Must NOT be the outer test cell.
+        y_val: Inner-validation targets.
+        n_trials: Number of Optuna search trials.
+        param_space: Parameter space dict (bounds/categoricals).
+        seed: Sampler seed.
 
     Returns:
-        Callable objective function.
+        Best parameter dictionary.
     """
+    space = param_space or DEFAULT_PARAM_SPACE
 
     def objective(trial: optuna.Trial) -> float:
-        C = trial.suggest_float("C", *param_space["C"], log=True)
-        epsilon = trial.suggest_float("epsilon", *param_space["epsilon"])
-        gamma = trial.suggest_categorical("gamma", param_space["gamma"])
-        if isinstance(gamma, str) and gamma not in ("scale", "auto"):
-            gamma = float(gamma)
-
+        params = {
+            "C": trial.suggest_float("C", *space["C"], log=True),
+            "epsilon": trial.suggest_float("epsilon", *space["epsilon"]),
+            "gamma": trial.suggest_categorical("gamma", space["gamma"]),
+        }
         try:
-            model = SVR(kernel="rbf", C=C, epsilon=epsilon, gamma=gamma)
+            model = build_svr(params)
             model.fit(X_train, y_train)
             y_pred = model.predict(X_val)
         except Exception as e:
             logger.warning("SVR trial failed: %s", e)
             return float("inf")
 
-        rmse_val = float(np.sqrt(np.mean((y_val - y_pred) ** 2)))
-        return rmse_val
+        return float(np.sqrt(np.mean((y_val - y_pred) ** 2)))
 
-    return objective
+    study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=seed))
+    study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
+
+    logger.info("SVR best params: %s (val RMSE=%.6f)", study.best_params, study.best_value)
+    return study.best_params
 
 
 def train_svr(
     X_train: np.ndarray,
     y_train: np.ndarray,
-    X_test: np.ndarray,
-    y_test: np.ndarray,
+    X_val: np.ndarray,
+    y_val: np.ndarray,
     n_trials: int = 50,
     param_space: dict | None = None,
-) -> tuple[SVR, dict[str, float], dict[str, float]]:
-    """Train SVR with Optuna tuning and evaluate on test set.
+    X_refit: np.ndarray | None = None,
+    y_refit: np.ndarray | None = None,
+    seed: int = 42,
+):
+    """Optimize + fit SVR; evaluate on the validation split.
+
+    Kept for API compatibility with existing tests/notebooks. The
+    orchestrator uses optimize_svr/build_svr directly.
 
     Args:
-        X_train: Training features.
-        y_train: Training targets.
-        X_test: Test features.
-        y_test: Test targets.
-        n_trials: Number of Optuna search trials.
+        X_train: Inner-training features.
+        y_train: Inner-training targets.
+        X_val: Validation features used for selection AND reported metrics.
+        y_val: Validation targets.
+        n_trials: Number of Optuna trials.
         param_space: Parameter space from config.
+        X_refit: Optional larger training set for the final refit.
+        y_refit: Optional targets for the final refit.
+        seed: Random seed.
 
     Returns:
-        Tuple of (fitted model, best_params, test_metrics).
+        Tuple of (fitted model, best_params, val_metrics).
     """
-    if param_space is None:
-        param_space = {
-            "C": (0.01, 1000),
-            "epsilon": (0.001, 0.1),
-            "gamma": ["scale", "auto", 0.0001, 1.0],
-        }
-
-    study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=42))
-    study.optimize(
-        create_objective(X_train, y_train, X_test, y_test, param_space),
-        n_trials=n_trials,
-        show_progress_bar=False,
-    )
-
-    best = study.best_params
-    logger.info("SVR best params: %s (RMSE=%.6f)", best, study.best_value)
-
-    model = SVR(kernel="rbf", C=best["C"], epsilon=best["epsilon"], gamma=best["gamma"])
-    model.fit(X_train, y_train)
-    y_pred = model.predict(X_test)
-
     from src.evaluation.metrics import compute_all_metrics
 
-    test_metrics = compute_all_metrics(y_test, y_pred)
-
-    logger.info("SVR test metrics: %s", test_metrics)
-    return model, best, test_metrics
+    best = optimize_svr(X_train, y_train, X_val, y_val, n_trials=n_trials, param_space=param_space, seed=seed)
+    model = build_svr(best)
+    if X_refit is not None and y_refit is not None:
+        model.fit(X_refit, y_refit)
+    else:
+        model.fit(X_train, y_train)
+    metrics = compute_all_metrics(y_val, model.predict(X_val))
+    return model, best, metrics

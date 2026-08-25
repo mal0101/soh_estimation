@@ -35,10 +35,18 @@ def compute_cumulative_capacity(current: np.ndarray, time: np.ndarray) -> np.nda
         return np.zeros_like(current, dtype=np.float64)
 
     dt = np.diff(time)
+    if not np.all(np.isfinite(dt)):
+        raise ValueError(
+            "time array contains non-finite values; NaN timestamps would "
+            "silently corrupt the capacity axis"
+        )
     if np.any(dt < 0):
         raise ValueError("time array must be monotonically increasing")
 
     avg_current = (np.abs(current[:-1]) + np.abs(current[1:])) / 2.0
-    cumulative = np.concatenate([[0.0], np.cumsum(avg_current * dt) / 3600.0])
+    cumulative = np.asarray(
+        np.concatenate([[0.0], np.cumsum(avg_current * dt) / 3600.0]),
+        dtype=np.float64,
+    )
 
     return cumulative

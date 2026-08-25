@@ -41,13 +41,15 @@ def resample_to_uniform_grid(
         raise ValueError(f"n_points must be >= 2, got {n_points}")
 
     if len(voltage) < 2:
-        cap_grid = np.linspace(0, 1, n_points)
+        # Degenerate input: return an Ah-scale zero grid so consumers can
+        # assume consistent units (never a normalized 0-1 grid).
+        cap_grid = np.zeros(n_points)
         return cap_grid, np.full(n_points, voltage[0] if len(voltage) == 1 else 0.0)
 
     cap_max = capacity[-1]
-    if cap_max <= 0:
-        cap_grid = np.linspace(0, 1, n_points)
-        return cap_grid, np.full(n_points, np.mean(voltage))
+    if not np.isfinite(cap_max) or cap_max <= 0:
+        cap_grid = np.zeros(n_points)
+        return cap_grid, np.full(n_points, float(np.mean(voltage)))
 
     cap_grid = np.linspace(0, cap_max, n_points)
     interpolator = interp1d(capacity, voltage, kind=kind, fill_value="extrapolate")

@@ -1,8 +1,10 @@
 """Discharge energy, mean voltage, and coulombic efficiency features."""
 
+from typing import Any
+
 import numpy as np
 
-_trapz = getattr(np, "trapezoid", getattr(np, "trapz", None))
+_trapz: Any = getattr(np, "trapezoid", np.trapz)  # numpy>=2 trapezoid, else trapz
 
 
 def compute_discharge_energy(
@@ -27,7 +29,7 @@ def compute_discharge_energy(
 
     power = voltage * np.abs(current)
     energy_joules = _trapz(power, time)
-    return energy_joules / 3600.0
+    return float(energy_joules / 3600.0)
 
 
 def compute_mean_discharge_voltage(
@@ -51,11 +53,12 @@ def compute_mean_discharge_voltage(
     if np.isnan(energy) or energy <= 0:
         return np.nan
 
-    capacity_ah = _trapz(np.abs(current), time) / 3600.0
+    charge = _trapz(np.abs(current), time)
+    capacity_ah = float(charge) / 3600.0
     if capacity_ah <= 0:
         return np.nan
 
-    return energy / capacity_ah
+    return float(energy / capacity_ah)
 
 
 def compute_coulombic_efficiency(
@@ -65,7 +68,10 @@ def compute_coulombic_efficiency(
     """Compute coulombic efficiency.
 
     CE = Q_discharge / Q_charge. Should be close to 1.0 for healthy cells
-    and deviate with aging and temperature.
+    and deviate with aging and temperature. Values far outside the
+    physical window (0.8, 1.05] indicate a broken charge/discharge
+    pairing (e.g., a truncated charge cycle) and return NaN rather than
+    poisoning the feature with an impossible value.
 
     Args:
         q_discharge: Discharge capacity in Ah.
@@ -73,8 +79,11 @@ def compute_coulombic_efficiency(
 
     Returns:
         Coulombic efficiency (dimensionless). Returns NaN if q_charge
-        is zero or negative.
+        is zero/negative or the ratio is physically implausible.
     """
-    if q_charge <= 0:
+    if q_charge <= 0 or not np.isfinite(q_charge) or not np.isfinite(q_discharge):
         return np.nan
-    return q_discharge / q_charge
+    ce = q_discharge / q_charge
+    if not (0.8 < ce <= 1.05):
+        return np.nan
+    return ce

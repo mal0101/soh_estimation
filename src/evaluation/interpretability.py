@@ -39,9 +39,7 @@ def shap_tree_explainer(
     return {
         "shap_values": shap_vals,
         "feature_importance": importance,
-        "expected_value": float(explainer.expected_value)
-        if np.isscalar(explainer.expected_value)
-        else float(explainer.expected_value[0]),
+        "expected_value": float(np.asarray(explainer.expected_value).ravel()[0]),
         "feature_names": feature_names,
     }
 
@@ -73,7 +71,8 @@ def captum_integrated_gradients(
     model = model.to(device)
 
     def forward_func(inputs: torch.Tensor) -> torch.Tensor:
-        return model(inputs).squeeze(-1)
+        out = model(inputs).squeeze(-1)
+        return torch.as_tensor(out)
 
     ig = IntegratedGradients(forward_func)
 
@@ -87,5 +86,5 @@ def captum_integrated_gradients(
 
     return {
         "attributions": attr_np,
-        "feature_importance": importance,
+        "feature_importance": np.asarray(importance),
     }

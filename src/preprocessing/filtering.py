@@ -47,4 +47,5 @@ def savgol_filter_voltage(
     if effective_window < polyorder + 2:
         return voltage.copy()
 
-    return savgol_filter(voltage, window_length=effective_window, polyorder=polyorder)
+    filtered = savgol_filter(voltage, window_length=effective_window, polyorder=polyorder)
+    return np.asarray(filtered, dtype=np.float64)
