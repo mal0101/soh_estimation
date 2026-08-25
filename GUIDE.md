@@ -126,7 +126,8 @@ python -m src.models.train_dl --config config/default.yaml --dataset nasa       
 Same protocol plus: sequence windows built directly from cell-grouped
 frames (windows never cross cells); Optuna trials early-stop on the inner
 val cell and record `best_epoch`; final models refit for exactly
-`best_epoch` epochs with best-weight restoration.
+`best_epoch` epochs; train_loop then keeps the epoch with the lowest
+training loss (train-only information — no test involvement).
 
 Duration: hours (dominated by CALCE/all). Run overnight.
 
@@ -220,3 +221,31 @@ runs have no dataset tag; notebook 05 filters them out.
   (CS2_36 was previously poisoned by a 0.147 Ah interruption inside its
   averaging window — fixed by the median reduction).
 - EOL definition: SOH ≤ 0.80 (informational; used in reporting/phases).
+
+## 9. Reproducibility Contract
+
+What is tracked in git vs. what must be regenerated locally:
+
+| Artifact | Tracked | Regenerate with |
+|---|---|---|
+| `experiments/classical_results_{ds}.yaml` | yes | `soh-train-classical --dataset {nasa\|calce\|all}` (~30-60 min total) |
+| `experiments/dl_results_{ds}.yaml` | yes | `soh-train-dl --dataset {nasa\|calce\|all}` (~hours; run overnight) |
+| `experiments/fold_indices_{ds}.json` | yes | produced by either training command |
+| `experiments/robustness_{ds}.yaml` | yes | `python scripts/run_robustness.py --dataset {ds}` (needs local models) |
+| `experiments/deployability_{ds}.yaml` | yes | `python scripts/run_analysis_extras.py --dataset {ds}` (needs local models) |
+| `experiments/analysis/*.yaml` | yes | same as above |
+| `report/figures/*.png`, `numbers_manifest.json` | yes | `generate_report_figures.py`, `update_results_docs.py` |
+| `mlflow.db` | yes | grows on every training run |
+| Raw + processed data products (`data/**`) | no | `soh-preprocess --dataset all`, `soh-build-features --dataset all` |
+| Persisted fold models (`experiments/models/`, ~1 GB) | **no** | training commands above |
+
+Consequence: robustness / deployability / SHAP analyses and the model-based
+sections of notebooks 04 and 06 require locally trained models. Re-running the
+classical suite takes ~30-60 min; DL is the long pole. All *reported metrics*
+live in the tracked YAMLs and never depend on local binaries.
+
+Gate check after any change:
+
+```bash
+python scripts/verify_consistency.py   # README block, notebook outputs, stale refs
+```

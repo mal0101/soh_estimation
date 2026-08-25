@@ -122,12 +122,14 @@ def run_dl_pipeline(config_path: str = "config/default.yaml", dataset: str = "al
     window_size = config["models"]["sequence_window"]
     n_seeds = int(dl_cfg.get("n_seeds", 3))
     base_seed = int(config.get("seeding.base_seed", 42))
+    n_inf_repeats = int(config.get("evaluation.deployability.n_inference_repeats", 200))
     device = device_manager()
 
     folds_splits = cell_fold_splits(feature_df)
     save_fold_indices(folds_splits, output_dir=experiments_dir, dataset=dataset)
 
     model_names = ["lstm", "cnn", "transformer"]
+    skipped: list[str] = []
     results: dict[str, dict[str, list]] = {
         name: {
             "fold_metrics": [],
@@ -186,18 +188,19 @@ def run_dl_pipeline(config_path: str = "config/default.yaml", dataset: str = "al
 
     def _fallback_params(model_name: str) -> dict[str, Any]:
         """Sane middle-of-space defaults when Optuna selection fails."""
+        default_lr = float(dl_cfg.get("learning_rate", 0.001))
         fallbacks = {
             "lstm": {
                 "lstm_1_units": 64, "lstm_2_units": 32,
-                "dropout": 0.25, "learning_rate": 0.001,
+                "dropout": 0.25, "learning_rate": default_lr,
             },
             "cnn": {
                 "filters_1": 32, "filters_2": 64, "filters_3": 128,
-                "kernel_size": 3, "dropout": 0.25, "learning_rate": 0.001,
+                "kernel_size": 3, "dropout": 0.25, "learning_rate": default_lr,
             },
             "transformer": {
                 "d_model": 64, "n_heads": 4, "n_encoder_blocks": 2,
-                "dropout": 0.2, "learning_rate": 0.001,
+                "dropout": 0.2, "learning_rate": default_lr,
             },
         }
         params = dict(fallbacks[model_name])
@@ -286,6 +289,7 @@ def run_dl_pipeline(config_path: str = "config/default.yaml", dataset: str = "al
                         logger.warning(
                             "%s fold %d seed %d: skipped (%s)", model_name, fold["fold"], seed, e
                         )
+                        skipped.append(f"{model_name}/fold{fold['fold']}/seed{seed}")
                         continue
 
                     elapsed = time.perf_counter() - t0
@@ -296,7 +300,7 @@ def run_dl_pipeline(config_path: str = "config/default.yaml", dataset: str = "al
                     test_ds = SOHDataset(test_scaled, selected_cols, window_size)
                     sample = test_ds[0][0].unsqueeze(0).numpy()
                     inf_stats = benchmark_inference_time(
-                        model, sample, n_repeats=200, is_torch=True, device=device
+                        model, sample, n_repeats=n_inf_repeats, is_torch=True, device=device
                     )
 
                     log_params({"model": model_name, "seed": seed, **{
@@ -351,9 +355,11 @@ def run_dl_pipeline(config_path: str = "config/default.yaml", dataset: str = "al
         "window_size": window_size,
         "protocol": (
             "cell-based LOOCV; per-fold feature selection; inner-cell-split "
-            "Optuna selection with early stopping; fixed-epoch refit on full "
-            "training fold; best-weight restoration"
+            "Optuna selection with early stopping; final refit for the selected "
+            "epoch count on the full training fold with min-train-loss weight "
+            "selection (train-only information)"
         ),
+        "skipped_runs": skipped,
     }
 
     results_path = experiments_dir / f"dl_results{suffix}.yaml"

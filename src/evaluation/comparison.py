@@ -32,6 +32,8 @@ def build_comparison_table(
 
     rows = []
     for model_name, model_metrics in results.items():
+        if model_name.startswith("_") or not isinstance(model_metrics, dict):
+            continue  # skip metadata blocks (e.g. '_meta') and malformed entries
         row: dict[str, Any] = {"Model": model_name}
         for m in metrics:
             mean_key = f"{m}_mean"

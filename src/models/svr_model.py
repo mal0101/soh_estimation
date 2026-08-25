@@ -72,11 +72,15 @@ def optimize_svr(
         try:
             model = build_svr(params)
             model.fit(X_train, y_train)
-            y_pred = model.predict(X_val)
-        except Exception as e:
-            logger.warning("SVR trial failed: %s", e)
-            return float("inf")
+        except (ValueError, MemoryError) as e:
+            # Invalid hyperparameter combination or resource issue for this
+            # trial only: prune it (recorded as pruned, not a fake +inf score
+            # that would pollute best-trial selection). Unexpected errors
+            # propagate and fail loudly.
+            logger.warning("SVR trial pruned: %s", e)
+            raise optuna.TrialPruned(str(e)) from e
 
+        y_pred = model.predict(X_val)
         return float(np.sqrt(np.mean((y_val - y_pred) ** 2)))
 
     study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=seed))

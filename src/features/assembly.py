@@ -308,15 +308,18 @@ def select_features(
 
 def save_feature_matrix(
     feature_df: pd.DataFrame,
-    selected_cols: list[str],
+    feature_cols: list[str],
     output_dir: str = "data/features",
     dataset: str = "all",
 ) -> Path:
-    """Save the feature matrix with selected features to parquet.
+    """Save the feature matrix (metadata + given feature columns) to parquet.
+
+    The builder passes ALL candidate features here; supervised selection
+    happens per LOOCV fold during training.
 
     Args:
         feature_df: Full feature matrix.
-        selected_cols: Names of selected feature columns.
+        feature_cols: Feature columns to store alongside metadata.
         output_dir: Output directory path.
         dataset: Dataset name for filename suffix ('nasa', 'calce', or 'all').
 
@@ -327,7 +330,7 @@ def save_feature_matrix(
     out_path.mkdir(parents=True, exist_ok=True)
 
     metadata_cols = ["cell_id", "dataset", "cycle_number", "soh"]
-    save_cols = metadata_cols + [c for c in selected_cols if c not in metadata_cols]
+    save_cols = metadata_cols + [c for c in feature_cols if c not in metadata_cols]
     save_df = feature_df[save_cols].copy()
 
     # Every dataset gets an explicit suffix so files can never silently

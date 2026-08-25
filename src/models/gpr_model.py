@@ -13,6 +13,28 @@ from sklearn.gaussian_process.kernels import Matern, WhiteKernel
 logger = logging.getLogger(__name__)
 
 
+def subsample_train_set(
+    X: np.ndarray, y: np.ndarray, max_train_samples: int, seed: int = 42
+) -> tuple[np.ndarray, np.ndarray]:
+    """Deterministically cap the training set for GP tractability.
+
+    Args:
+        X: Training features.
+        y: Training targets.
+        max_train_samples: Maximum number of rows to keep.
+        seed: Subsampling seed.
+
+    Returns:
+        Possibly subsampled (X, y).
+    """
+    if len(X) > max_train_samples:
+        rng = np.random.RandomState(seed)
+        idx = rng.choice(len(X), max_train_samples, replace=False)
+        logger.info("Subsampled GPR training set: %d -> %d", len(X), max_train_samples)
+        return X[idx], y[idx]
+    return X, y
+
+
 def build_gpr(n_restarts: int = 5, seed: int = 42) -> GaussianProcessRegressor:
     """Construct an unfitted GPR with the fixed Matérn(1.5)+White kernel.
 

@@ -20,7 +20,7 @@ from src.evaluation.error_analysis import phase_rmse
 from src.features.assembly import fit_feature_selection
 from src.features.energy import compute_coulombic_efficiency
 from src.features.trend import compute_capacity_fade_rate
-from src.models.rf_model import build_rf, optimize_rf
+from src.models.rf_model import optimize_rf
 from src.preprocessing.segmentation import validate_cycles
 from src.preprocessing.soh import compute_q_initial
 
@@ -69,6 +69,7 @@ class TestSelectionFittedOnTrainOnly:
                         "cycle_number": i,
                         "soh": soh,
                         "f_energy": 50 * soh + rng.randn() * 0.5,
+                        "f_energy2": 20 * soh + rng.randn() * 0.3,
                         "f_noise": rng.randn(),
                     }
                 )
@@ -80,33 +81,58 @@ class TestSelectionFittedOnTrainOnly:
         cols = fit_feature_selection(train, top_k=2)
         assert cols[0] == "f_energy"
 
-    def test_selection_uses_only_given_rows(self):
-        """Corrupting held-out rows cannot change train-fitted selection."""
+    def test_selection_is_sensitive_to_train_rows(self):
+        """Selection output must actually depend on the rows it is given:
+        destroying a signal column's information must demote it."""
         df = self._make_df()
-        train = df[df["cell_id"].isin(["c1", "c2", "c3"])]
-        cols_a = fit_feature_selection(train.copy(), top_k=2)
+        train = df[df["cell_id"].isin(["c1", "c2", "c3"])].copy()
+        cols_a = fit_feature_selection(train, top_k=2)
+        assert cols_a[0] == "f_energy"
 
-        corrupted = df.copy()
-        mask = corrupted["cell_id"] == "c4"
-        corrupted.loc[mask, "f_energy"] = np.random.rand(int(mask.sum())) * 1000
-        cols_b = fit_feature_selection(
-            corrupted[corrupted["cell_id"].isin(["c1", "c2", "c3"])], top_k=2
+        corrupted = train.copy()
+        # Replace the primary signal with pure noise across ALL training rows;
+        # the secondary signal must take over the top spot.
+        corrupted["f_energy"] = np.random.RandomState(3).rand(len(corrupted))
+        cols_b = fit_feature_selection(corrupted, top_k=2)
+
+        assert cols_b[0] == "f_energy2", (
+            f"expected surviving signal to lead, got {cols_b} -> selection ignores its inputs"
         )
-        assert cols_a == cols_b
 
-    def test_rf_objective_uses_inner_val(self):
-        """optimize_rf must score candidates against X_val, not X_train."""
+    def test_rf_objective_scores_against_validation_split(self):
+        """optimize_rf's objective must evaluate candidate models on X_val
+        (n_val samples), never on the tuning split. Verified with a spy on
+        predict(): every scored prediction must have validation size."""
+        import src.models.rf_model as rf_mod
+
         rng = np.random.RandomState(7)
         X = rng.randn(120, 4)
         y = X[:, 0] * 0.5 + rng.randn(120) * 0.01
         X_tr, y_tr = X[:80], y[:80]
         X_val, y_val = X[80:], y[80:]
 
-        best = optimize_rf(X_tr, y_tr, X_val, y_val, n_trials=3)
-        model = build_rf(best).fit(X_tr, y_tr)
-        rmse_val = float(np.sqrt(np.mean((y_val - model.predict(X_val)) ** 2)))
-        # A model that peeked at val during fitting would show ~zero val error.
-        assert rmse_val > 1e-6
+        observed_sizes: list[int] = []
+        original_predict = rf_mod.RandomForestRegressor.predict
+
+        class SpyRF(rf_mod.RandomForestRegressor):
+            def predict(self, X):  # noqa: N802 (sklearn API name)
+                observed_sizes.append(len(X))
+                return original_predict(self, X)
+
+        original_cls = rf_mod.RandomForestRegressor
+        rf_mod.RandomForestRegressor = SpyRF
+        try:
+            optimize_rf(X_tr, y_tr, X_val, y_val, n_trials=4)
+        finally:
+            rf_mod.RandomForestRegressor = original_cls
+
+        # n_trials fits + n_trials objective predicts + final build_rf fit
+        # (build_rf is constructed inside objective too). Every predict call
+        # must be exactly the validation-set size.
+        assert observed_sizes, "objective never evaluated a model"
+        assert all(n == len(y_val) for n in observed_sizes), (
+            f"predict() called with non-validation sizes: {sorted(set(observed_sizes))}"
+        )
 
 
 class TestInnerCellSplit:

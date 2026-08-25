@@ -38,12 +38,17 @@ def run_build_features(config_path: str = "config/default.yaml", dataset: str = 
     """Build and save the full candidate feature matrix for a dataset.
 
     Args:
-        config_path: Path to the YAML configuration file.
+        config_path: Path to the YAML configuration file (anchored to the
+            project root when relative).
         dataset: Which dataset to process: 'nasa', 'calce', or 'all'.
     """
     from src.utils.config import Config
+    from src.utils.paths import project_root
 
-    config = Config.from_yaml(config_path)
+    cfg_path = Path(config_path)
+    if not cfg_path.is_absolute() and not cfg_path.exists():
+        cfg_path = project_root() / config_path
+    config = Config.from_yaml(str(cfg_path))
     processed_dir = Path(config.get("data.processed_dir", "data/processed"))
     features_dir = config.get("data.features_dir", "data/features")
     min_peak_prominence = config.get("features.ica.min_peak_prominence", 0.01)

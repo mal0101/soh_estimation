@@ -113,8 +113,10 @@ def train_loop(
         val_loader: Validation data loader.
         config: Training config dict with keys: learning_rate, max_epochs,
             patience_early_stopping, patience_lr_reduce, lr_reduce_factor,
-            and optionally fixed_epochs (train exactly this many epochs
-            with no early stopping — used for final refits).
+            and optionally fixed_epochs (train exactly this many epochs with
+            no early stopping and no LR plateau scheduling — used for final
+            refits; best-weight restoration then selects the minimum
+            TRAINING-loss epoch, which uses no validation information).
         device: Compute device.
         seed: Random seed.
 

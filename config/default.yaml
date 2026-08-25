@@ -35,7 +35,6 @@ preprocessing:
     interruption_window: 5        # neighbours on each side for the local median
     run_drop_fraction: 0.70       # recovered low runs are anomalies if mean depth < fraction x q_initial
     run_entry_fraction: 0.75      # cycle joins a candidate anomalous run when capacity < fraction x q_initial
-    current_sign_convention: "positive=charge"
 
 features:
   ica:
@@ -67,7 +66,6 @@ models:
         gamma: ["scale", "auto", 0.0001, 1.0]
     gpr:
       max_train_samples: 5000   # subsample cap (dormant at current dataset sizes)
-      kernel: "matern_1_5"      # informational: fixed Matern(nu=1.5) + WhiteKernel
       n_restarts_optimizer: 5
 
   dl:
@@ -116,10 +114,6 @@ evaluation:
     - mae
     - maxae
     - r2
-  error_analysis_phases:
-    early: {min_soh: 0.90, max_soh: 1.01}
-    mid: {min_soh: 0.80, max_soh: 0.90}
-    end: {min_soh: 0.0, max_soh: 0.80}
   robustness:
     noise_levels: [0.005, 0.01, 0.02]
     missing_cycle_fractions: [0.1, 0.2, 0.3]

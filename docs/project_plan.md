@@ -719,3 +719,21 @@ Target for a credible research result: RMSE < 2% on held-out cells, MaxAE < 5%, 
 ---
 
 *This plan is calibrated for a full-time internship ending at end of August, with a six-model benchmark scope. The non-negotiable core is: preprocessing done correctly (cell-based splits, per-cell SOH labeling) + feature engineering (ICA + IR + energy + temperature) + at least RF and LSTM trained and evaluated. Everything else is additive. If you hit a blocker in any phase, escalate to your supervisor immediately rather than losing days trying to resolve it alone — internship timelines have no slack for silent debugging.*
+
+---
+
+## Post-Plan Corrections (2026-08-25)
+
+Statements above reflect initial planning and are superseded where they conflict
+with the implemented system:
+
+- Model count: **seven** models are benchmarked — naive mean baseline plus
+  RF/SVR/GPR/LSTM/CNN/Transformer (plan said six).
+- EIS features ARE in scope: `eis_re`/`eis_rct` are extracted for NASA cells
+  (`src/features/internal_resistance.py`) when impedance data exists.
+- Feature selection keeps up to `top_k_features: 20` per LOOCV fold
+  (`fit_feature_selection`, train-cells-only); the plan's "top 15-20" was a
+  design-stage estimate.
+- All reported metrics come from the leakage-safe protocol described in
+  docs/decisions_log.md D-009..D-016; earlier in-text metric examples are
+  illustrative only.

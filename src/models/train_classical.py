@@ -36,7 +36,7 @@ from src.evaluation.validation import (
 )
 from src.features.assembly import fit_feature_selection
 from src.models.baseline import NaiveBaseline
-from src.models.gpr_model import build_gpr
+from src.models.gpr_model import build_gpr, subsample_train_set
 from src.models.rf_model import build_rf, optimize_rf
 from src.models.svr_model import build_svr, optimize_svr
 from src.utils.config import Config
@@ -110,7 +110,7 @@ def run_classical_pipeline(config_path: str = "config/default.yaml", dataset: st
     save_fold_indices(folds_splits, output_dir=experiments_dir, dataset=dataset)
 
     results: dict[str, dict[str, list]] = {
-        name: {"fold_metrics": [], "fold_val_metrics": [], "fold_train_times": [],
+        name: {"fold_metrics": [], "fold_train_times": [],
                "fold_inference": [], "fold_features": []}
         for name in ["naive", "rf", "svr", "gpr"]
     }
@@ -217,12 +217,16 @@ def run_classical_pipeline(config_path: str = "config/default.yaml", dataset: st
                        tags={**common_tags, "fold": str(fold["fold"]), "model": "gpr"}):
             t0 = time.perf_counter()
             model = build_gpr(n_restarts=gpr_cfg["n_restarts_optimizer"], seed=base_seed)
-            model.fit(X_train_s, y_train)
+            X_fit, y_fit = subsample_train_set(
+                X_train_s, y_train, max_train_samples=int(gpr_cfg["max_train_samples"]), seed=base_seed
+            )
+            model.fit(X_fit, y_fit)
             train_time = time.perf_counter() - t0
             inf_stats = benchmark_inference_time(model, X_test_s, n_repeats=min(n_inf_repeats, 100))
             y_pred = model.predict(X_test_s)
             metrics = compute_all_metrics(y_test, y_pred)
-            log_params({"model": "gpr", "n_train": len(X_train_s)})
+            log_params({"model": "gpr", "n_train": len(X_train_s),
+                        "max_train_samples_cap": int(gpr_cfg["max_train_samples"])})
             log_metrics(metrics)
             model_path = models_dir / f"gpr_fold{fold['fold']}.joblib"
             joblib.dump({"model": model, "feature_cols": selected_cols}, model_path)
