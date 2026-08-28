@@ -199,3 +199,7 @@ report/presentation/
 !mlflow.db
 
 # GUIDE.md is tracked documentation despite the generic ignore below.
+
+# macOS
+.DS_Store
+.DS_Store.*
